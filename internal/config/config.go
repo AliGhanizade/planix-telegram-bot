@@ -1,3 +1,4 @@
+// Package config تنظیمات اجرایی بات را از متغیرهای محیطی می‌خواند.
 package config
 
 import (
@@ -5,21 +6,30 @@ import (
 	"os"
 )
 
+// Config مجموعه‌ی تنظیمات لازم برای اجرای پلنیکس است.
 type Config struct {
-	AppEnv           string
-	HTTPAddr         string
-	DatabaseURL      string
-	TelegramBotToken string
-	LogLevel         string
+	AppEnv                string
+	HTTPAddr              string
+	DatabaseURL           string
+	TelegramBotToken      string
+	TelegramWebhookSecret string
+	OwnerUsername         string
+	LogLevel              string
+	DailyReportCron       string
 }
 
+// Load تنظیمات را می‌خواند و مقادیر اجباری را بررسی می‌کند.
+// توکن بات هرگز مقدار پیش‌فرض ندارد و همیشه باید از متغیر محیطی خوانده شود.
 func Load() (Config, error) {
 	c := Config{
-		AppEnv:           env("APP_ENV", "development"),
-		HTTPAddr:         env("HTTP_ADDR", ":8080"),
-		DatabaseURL:      os.Getenv("DATABASE_URL"),
-		TelegramBotToken: os.Getenv("TELEGRAM_BOT_TOKEN"),
-		LogLevel:         env("LOG_LEVEL", "info"),
+		AppEnv:                env("APP_ENV", "development"),
+		HTTPAddr:              env("HTTP_ADDR", ":8080"),
+		DatabaseURL:           env("DATABASE_URL", "postgres://planix:planix@localhost:5432/planix?sslmode=disable"),
+		TelegramBotToken:      os.Getenv("TELEGRAM_BOT_TOKEN"),
+		TelegramWebhookSecret: os.Getenv("TELEGRAM_WEBHOOK_SECRET"),
+		OwnerUsername:         env("TELEGRAM_OWNER_USERNAME", "AliGhanizade"),
+		LogLevel:              env("LOG_LEVEL", "info"),
+		DailyReportCron:       env("DAILY_REPORT_CRON", "0 0 21 * * *"),
 	}
 	if c.TelegramBotToken == "" {
 		return c, fmt.Errorf("TELEGRAM_BOT_TOKEN is required")
@@ -30,6 +40,7 @@ func Load() (Config, error) {
 	return c, nil
 }
 
+// env مقدار متغیر محیطی را برمی‌گرداند یا در نبودش مقدار پیش‌فرض را.
 func env(key, fallback string) string {
 	if value := os.Getenv(key); value != "" {
 		return value

@@ -4,12 +4,13 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/AliGhanizade/planix-telegram-bot/internal/bot"
 	"github.com/AliGhanizade/planix-telegram-bot/internal/config"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
-func NewRouter(cfg config.Config, log *zap.Logger) *gin.Engine {
+func NewRouter(cfg config.Config, telegram *bot.Bot, log *zap.Logger) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.Use(requestLogger(log))
