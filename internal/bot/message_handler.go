@@ -12,6 +12,7 @@ import (
 func (b *Bot) handleMessage(ctx context.Context, m *tgbotapi.Message) error {
 	helpMsg := "سلام، من پلنیکس هستم ✨\n\n" +
 		"➕ تسک جدید — ثبت سریع تسک برای خودت\n" +
+		"📋 برنامه امروز — مشاهده و مدیریت کارهای امروز\n" +
 		"ℹ️ راهنما — همین پیام"
 
 	u := &domain.User{TelegramID: m.From.ID, Username: m.From.UserName, FirstName: m.From.FirstName, LastName: m.From.LastName, LanguageCode: m.From.LanguageCode, LastSeenAt: ptr(time.Now())}
@@ -25,6 +26,8 @@ func (b *Bot) handleMessage(ctx context.Context, m *tgbotapi.Message) error {
 		return b.reply(m.Chat.ID, helpMsg, MainKeyboard())
 	case "➕ تسک جدید":
 		return b.setStateAndReply(ctx, u.ID, "waiting_task_title", m.Chat.ID, "عنوان تسک را بفرست. مثال: مطالعه گولنگ", CancelStateInlineKeyboard())
+	case "📋 برنامه امروز", "📅 برنامه‌های من":
+		return b.sendToday(ctx, u, m.Chat.ID)
 	default:
 		return b.checkState(ctx, u, text)
 	}
