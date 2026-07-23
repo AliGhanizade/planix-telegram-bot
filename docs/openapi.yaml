@@ -1,0 +1,95 @@
+openapi: 3.0.3
+info:
+  title: Planix API
+  version: 0.1.0
+  description: |
+    English: HTTP interface for the Planix Telegram bot. Telegram uses the webhook endpoint.
+    فارسی: رابط HTTP بات تلگرام پلنیکس. تلگرام به مسیر وب‌هوک درخواست می‌فرستد.
+servers:
+  - url: http://localhost:8080
+paths:
+  /healthz:
+    get:
+      summary: Service health check / بررسی سلامت سرویس
+      responses:
+        '200':
+          description: Service is running
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+  /telegram/webhook:
+    post:
+      summary: Telegram webhook / وب‌هوک تلگرام
+      parameters:
+        - in: header
+          name: X-Telegram-Bot-Api-Secret-Token
+          required: false
+          schema: { type: string }
+          description: Must match TELEGRAM_WEBHOOK_SECRET when configured.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, description: Telegram Update payload }
+      responses:
+        '200': { description: Update accepted }
+        '400': { description: Invalid payload }
+        '401': { description: Invalid webhook secret }
+        '500': { description: Processing failure }
+components:
+  schemas:
+    User:
+      type: object
+      required: [id, telegram_id]
+      properties:
+        id: { type: string, format: uuid, description: Internal Planix ID / شناسه داخلی پلنیکس }
+        telegram_id: { type: integer, format: int64 }
+        username: { type: string }
+        timezone: { type: string, example: Asia/Tehran }
+    Planner:
+      type: object
+      required: [id, owner_id, title, plan_date]
+      properties:
+        id: { type: string, format: uuid }
+        owner_id: { type: string, format: uuid }
+        target_user_id: { type: string, format: uuid, nullable: true }
+        title: { type: string }
+        plan_date: { type: string, format: date }
+        status: { type: string, enum: [active, archived] }
+    Task:
+      type: object
+      required: [id, owner_id, assignee_id, title, status]
+      properties:
+        id: { type: string, format: uuid }
+        planner_id: { type: string, format: uuid, nullable: true }
+        owner_id: { type: string, format: uuid }
+        assignee_id: { type: string, format: uuid }
+        title: { type: string, maxLength: 240 }
+        description: { type: string }
+        due_at: { type: string, format: date-time, nullable: true }
+        priority: { type: string, enum: [low, normal, high] }
+        status: { type: string, enum: [pending, completed, cancelled] }
+        requires_evidence: { type: boolean }
+        completed_at: { type: string, format: date-time, nullable: true }
+    TaskEvidence:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        task_id: { type: string, format: uuid }
+        submitted_by_id: { type: string, format: uuid }
+        kind: { type: string, enum: [text, photo, document] }
+        text: { type: string }
+        telegram_file_id: { type: string }
+    ActivityLog:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        entity_type: { type: string }
+        entity_id: { type: string, format: uuid }
+        action: { type: string }
+        metadata: { type: object }
+        occurred_at: { type: string, format: date-time }
+
