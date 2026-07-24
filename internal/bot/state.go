@@ -24,37 +24,29 @@ func (b *Bot) checkState(ctx context.Context, u *domain.User, text string) error
 	case b.db.WithContext(ctx).Where("user_id = ? AND state = ? AND expires_at > ?", u.ID, "waiting_task_for_other", time.Now()).First(&session).Error == nil:
 		lines := strings.Split(text, "\n")
 		if len(lines) < 2 {
-			return b.reply(u.TelegramID, "لطفا یوزرنیم را در خط اول و تسک‌ها را در خطوط بعدی وارد کن.", MainKeyboard())
+			return b.reply(u.TelegramID, "لطفا یوزرنیم را در خط اول و هر تسک را در یک خط جدا بفرست.", CancelStateInlineKeyboard())
 		}
 
-		username := strings.TrimSpace(lines[0])
-		username = strings.TrimPrefix(username, "@")
-
+		username := strings.TrimPrefix(strings.TrimSpace(lines[0]), "@")
 		targetUser, err := b.users.GetByUsername(ctx, username)
 		if err != nil {
-			return b.reply(u.TelegramID, "یوزرنیم پیدا نشد. لطفا دوباره امتحان کن.", MainKeyboard())
+			return b.reply(u.TelegramID, "یوزرنیم پیدا نشد. لطفا دوباره امتحان کن.", CancelStateInlineKeyboard())
+		}
+		if targetUser.ID == u.ID {
+			return b.reply(u.TelegramID, "نمی‌تونی تسک رو به خودت واگذار کنی 🙂", CancelStateInlineKeyboard())
 		}
 
-		tasksTitle := lines[1:]
-
-		var ownerUser domain.BotSession
-		if err := b.db.WithContext(ctx).Where("user_id = ?  AND expires_at > ?", u.ID, time.Now()).First(&ownerUser).Error; err != nil {
-			return b.reply(u.TelegramID, "خطا در پیدا کردن یوزر شما. لطفا دوباره امتحان کن.", MainKeyboard())
-		}
-		if err := b.db.WithContext(ctx).Where("id = ?", targetUser.ID).First(&targetUser).Error; err != nil {
-			return b.reply(u.TelegramID, "خطا در پیدا کردن یوزر هدف. لطفا دوباره امتحان کن.", MainKeyboard())
-		}
-		if err := b.setTaskForOther(ctx, u.ID, targetUser.ID, tasksTitle, "normal"); err != nil {
+		if err := b.setTaskForOther(ctx, u.ID, targetUser.ID, lines[1:], "normal"); err != nil {
 			return err
 		}
-		return b.deleteState(ctx, ownerUser.ID)
+		return b.deleteState(ctx, u.ID)
 
 	case b.db.WithContext(ctx).Where("user_id = ? AND state = ? AND expires_at > ?", u.ID, "waiting_task_status_for_other", time.Now()).First(&session).Error == nil:
 		username := strings.TrimPrefix(text, "@")
 
 		targetUser, err := b.users.GetByUsername(ctx, username)
 		if err != nil {
-			return b.reply(u.TelegramID, "یوزرنیم پیدا نشد. لطفا دوباره امتحان کن.", MainKeyboard())
+			return b.reply(u.TelegramID, "یوزرنیم پیدا نشد. لطفا دوباره امتحان کن.", CancelStateInlineKeyboard())
 		}
 
 		b.db.WithContext(ctx).Delete(&session)
@@ -62,7 +54,6 @@ func (b *Bot) checkState(ctx context.Context, u *domain.User, text string) error
 	default:
 		return nil
 	}
-
 }
 
 func (b *Bot) deleteState(ctx context.Context, userID uuid.UUID) error {
@@ -70,5 +61,3 @@ func (b *Bot) deleteState(ctx context.Context, userID uuid.UUID) error {
 		Where("user_id = ?", userID).
 		Delete(&domain.BotSession{}).Error
 }
-
-
