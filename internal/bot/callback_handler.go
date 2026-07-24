@@ -59,6 +59,25 @@ func (b *Bot) handleCallback(ctx context.Context, q *tgbotapi.CallbackQuery) err
 		}
 		_, _ = b.api.Request(tgbotapi.NewCallback(q.ID, "ثبت شد ❌"))
 		return b.reply(q.Message.Chat.ID, fmt.Sprintf("❌ تسک «%s» انجام نشد.", task.Title), MainKeyboard())
+
+	case strings.HasPrefix(data, "state:cancel"):
+		user, err := b.users.GetByTelegramID(ctx, q.From.ID)
+		if err != nil {
+			return err
+		}
+		b.deleteState(ctx, user.ID)
+		_, _ = b.api.Request(tgbotapi.NewCallback(q.ID, "لغو شد ❌"))
+		return b.reply(q.Message.Chat.ID, "❌ عملیات لغو شد.", MainKeyboard())
+
+	case strings.HasPrefix(data, "user:filter:fr:"):
+		username := strings.TrimPrefix(data, "user:filter:fr:")
+		user, err := b.users.GetByTelegramID(ctx, q.From.ID)
+		targetUser, err := b.users.GetByUsername(ctx, username)
+		if err != nil {
+			return b.reply(user.TelegramID, "یوزرنیم پیدا نشد. لطفا دوباره امتحان کن.", MainKeyboard())
+		}
+		b.deleteState(ctx, user.ID)
+		return b.getTargetTask(ctx, user.ID, targetUser.ID)
 	}
 	return nil
 }
