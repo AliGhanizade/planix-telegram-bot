@@ -2,6 +2,7 @@ package bot
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/AliGhanizade/planix-telegram-bot/internal/domain"
@@ -41,9 +42,13 @@ func (b *Bot) HandleUpdate(ctx context.Context, update tgbotapi.Update) error {
 
 func (b *Bot) reply(chatID int64, text string, markup any) error {
 	m := tgbotapi.NewMessage(chatID, text)
+
 	if markup != nil {
 		m.ReplyMarkup = markup
+	} else {
+		m.ReplyMarkup = MainKeyboard()
 	}
+
 	_, err := b.api.Send(m)
 	return err
 }
@@ -62,4 +67,27 @@ func (b *Bot) setStateAndReply(ctx context.Context, userID uuid.UUID, state stri
 		return err
 	}
 	return b.reply(chatID, text, k)
+}
+
+func (b *Bot) setTaskForOther(ctx context.Context, ownerID uuid.UUID, assigneeID uuid.UUID, titles []string, priority string) error {
+	for _, title := range titles {
+		task := &domain.Task{OwnerID: ownerID, AssigneeID: assigneeID, Title: title, Priority: priority, Status: "pending"}
+		if err := b.tasks.CreateForOtherUser(ctx, task); err != nil {
+			return err
+		}
+	}
+	assignee, err := b.users.GetByID(ctx, assigneeID)
+	if err != nil {
+		return err
+	}
+	owner, err := b.users.GetByID(ctx, ownerID)
+	if err != nil {
+		return err
+	}
+	message := fmt.Sprintf("📣 گزارش پلنیکس\n%s یک تسک برای تو ثبت کرد:", owner.FirstName)
+	if err := b.reply(assignee.TelegramID, message, MainKeyboard()); err != nil {
+		return err
+	}
+	_ = b.reply(owner.TelegramID, fmt.Sprintf("تسک برای %s با موفقیت ثبت شد:", assignee.FirstName), MainKeyboard())
+	return nil
 }
