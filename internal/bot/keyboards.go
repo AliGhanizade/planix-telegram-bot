@@ -20,6 +20,7 @@ func TasksInlineKeyboard(tasks []domain.Task) tgbotapi.InlineKeyboardMarkup {
 			tgbotapi.NewInlineKeyboardButtonData(" ℹ️ "+task.Title, "task:info:"+task.ID.String()),
 			tgbotapi.NewInlineKeyboardButtonData(task.Title+" ✅ ", "task:done:"+task.ID.String()),
 		))
+
 	}
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
@@ -51,4 +52,37 @@ func TaskInlineKeyboard(task *domain.Task) tgbotapi.InlineKeyboardMarkup {
 			tgbotapi.NewInlineKeyboardButtonData("🔄 بروزرسانی", "task:refresh:"+task.ID.String()),
 		),
 	)
+}
+
+func SuggestFriendInlineKeyboard(users []domain.User) tgbotapi.InlineKeyboardMarkup {
+	rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(users)*2)
+	for _, user := range users {
+
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(user.Username, "user:filter:fr:"+user.Username),
+		))
+	}
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("❌ لغو", "state:cancel"),
+	))
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
+}
+
+func FilterInlineKeyboard(tasks []domain.Task) tgbotapi.InlineKeyboardMarkup {
+	rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(tasks)*2)
+	for _, task := range tasks {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("All Task", "task:filter:not:"+task.ID.String()),
+		))
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("❌", "task:filter:pendding:"+task.ID.String()),
+			tgbotapi.NewInlineKeyboardButtonData("✅", "task:filter:completed:"+task.ID.String()),
+		))
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("❌", "task:filter:not:"+task.ID.String()),
+			tgbotapi.NewInlineKeyboardButtonData("✅", "task:filter:done:"+task.ID.String()),
+		))
+
+	}
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
