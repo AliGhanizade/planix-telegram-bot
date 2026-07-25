@@ -2,6 +2,7 @@ package bot
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -25,7 +26,8 @@ func (b *Bot) handleMessage(ctx context.Context, m *tgbotapi.Message) error {
 		"📋 برنامه امروز — مشاهده و مدیریت کارهای امروز\n" +
 		"👥 اعمال وظایف دیگران — واگذاری چند تسک به یک نفر\n" +
 		"✅ وضعیت وظایف دیگران — پیگیری تسک‌هایی که محول کرده‌ای\n" +
-		"ℹ️ راهنما — همین پیام"
+		"👤 پروفایل — مشخصات و آمارهات\n" +
+		"🛟 پشتیبانی — ارتباط با ما"
 
 	u := &domain.User{TelegramID: m.From.ID, Username: m.From.UserName, FirstName: m.From.FirstName, LastName: m.From.LastName, LanguageCode: m.From.LanguageCode, LastSeenAt: ptr(time.Now())}
 	if err := b.users.UpsertTelegramUser(ctx, u); err != nil {
@@ -52,11 +54,33 @@ func (b *Bot) handleMessage(ctx context.Context, m *tgbotapi.Message) error {
 			return err
 		}
 		return b.reply(m.Chat.ID, "برای چه کسی می‌خوای وضعیت تسک‌هاشو ببینی؟", SuggestFriendInlineKeyboard(users))
+	case "پشتیبانی":
+		return b.reply(m.Chat.ID, fmt.Sprintf("🛟 برای ارتباط با پشتیبانی به @%s پیام بده.", b.owner), MainKeyboard())
+	case "پروفایل":
+		return b.sendProfile(ctx, u)
 	case "❌ بازگشت", " ❌ بازگشت":
 		return b.deleteState(ctx, u.ID)
 	default:
 		return b.checkState(ctx, u, text)
 	}
+}
+
+// sendProfile مشخصات و تعداد تسک‌های باز کاربر را نمایش می‌دهد.
+func (b *Bot) sendProfile(ctx context.Context, u *domain.User) error {
+	open, err := b.tasks.CountOpen(ctx, u.ID)
+	if err != nil {
+		return err
+	}
+	name := strings.TrimSpace(u.FirstName + " " + u.LastName)
+	if name == "" {
+		name = "کاربر پلنیکس"
+	}
+	username := "ندارد"
+	if u.Username != "" {
+		username = "@" + u.Username
+	}
+	text := fmt.Sprintf("👤 پروفایل\n\n%s\nیوزرنیم: %s\nتسک‌های باز: %d", name, username, open)
+	return b.reply(u.TelegramID, text, MainKeyboard())
 }
 
 func ptr(t time.Time) *time.Time { return &t }

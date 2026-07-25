@@ -61,6 +61,15 @@ func (s *TaskService) Today(ctx context.Context, userID uuid.UUID) ([]domain.Tas
 	return s.tasks.ListPendingByAssignee(ctx, userID)
 }
 
+// CountOpen تعداد تسک‌های باز کاربر را برمی‌گرداند.
+func (s *TaskService) CountOpen(ctx context.Context, userID uuid.UUID) (int64, error) {
+	var n int64
+	err := s.db.WithContext(ctx).Model(&domain.Task{}).
+		Where("assignee_id = ? AND status = ?", userID, "pending").
+		Count(&n).Error
+	return n, err
+}
+
 // log رویداد را در جدول ActivityLog ثبت می‌کند.
 func (s *TaskService) log(ctx context.Context, userID *uuid.UUID, kind string, id uuid.UUID, action string, meta any) error {
 	raw, _ := json.Marshal(meta)
