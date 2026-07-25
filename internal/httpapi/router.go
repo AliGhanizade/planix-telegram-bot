@@ -7,8 +7,8 @@ import (
 
 	"github.com/AliGhanizade/planix-telegram-bot/internal/bot"
 	"github.com/AliGhanizade/planix-telegram-bot/internal/config"
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/gin-gonic/gin"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"go.uber.org/zap"
 )
 

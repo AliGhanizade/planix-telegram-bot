@@ -105,6 +105,10 @@ func (b *Bot) getTargetTask(ctx context.Context, ownerID, targetID uuid.UUID) er
 	if err != nil {
 		return err
 	}
+	owner, err := b.users.GetByID(ctx, ownerID)
+	if err != nil {
+		return err
+	}
 	if len(tasks) == 0 {
 		return b.reply(owner.TelegramID, fmt.Sprintf("شما تا کنون به %s تسکی نداده‌اید.", target.FirstName), MainKeyboard())
 	}

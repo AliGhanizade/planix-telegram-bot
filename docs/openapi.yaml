@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Planix API
-  version: 0.1.0
+  version: 1.0.0
   description: |
     English: HTTP interface for the Planix Telegram bot. Telegram uses the webhook endpoint.
     فارسی: رابط HTTP بات تلگرام پلنیکس. تلگرام به مسیر وب‌هوک درخواست می‌فرستد.
