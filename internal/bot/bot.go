@@ -1,3 +1,5 @@
+// Package bot پیاده‌سازی بات تلگرام پلنیکس است: دریافت آپدیت‌ها،
+// کیبوردها، جریان‌های چندمرحله‌ای و پاسخ‌دهی به کاربر.
 package bot
 
 import (
@@ -14,23 +16,26 @@ import (
 	"gorm.io/gorm"
 )
 
+// Bot نگهدارنده‌ی کلاینت تلگرام و وابستگی‌های بات است.
 type Bot struct {
 	api   *tgbotapi.BotAPI
 	users *repository.UserRepository
 	tasks *service.TaskService
 	db    *gorm.DB
 	log   *zap.Logger
+	owner string
 }
 
-func New(token string, db *gorm.DB, log *zap.Logger) (*Bot, error) {
+// New کلاینت تلگرام را با توکن داده‌شده می‌سازد.
+func New(token, owner string, db *gorm.DB, log *zap.Logger) (*Bot, error) {
 	api, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
 		return nil, err
 	}
-	return &Bot{api: api, users: repository.NewUser(db), tasks: service.NewTask(db), db: db, log: log}, nil
+	return &Bot{api: api, users: repository.NewUser(db), tasks: service.NewTask(db), db: db, log: log, owner: owner}, nil
 }
 
-
+// HandleUpdate آپدیت دریافتی را به هندلر مناسب (پیام یا کال‌بک) می‌سپارد.
 func (b *Bot) HandleUpdate(ctx context.Context, update tgbotapi.Update) error {
 	if update.Message != nil {
 		return b.handleMessage(ctx, update.Message)
@@ -41,38 +46,35 @@ func (b *Bot) HandleUpdate(ctx context.Context, update tgbotapi.Update) error {
 	return nil
 }
 
+// reply پیام متنی می‌فرستد؛ اگر markup داده نشده باشد کیبورد اصلی می‌گذارد.
 func (b *Bot) reply(chatID int64, text string, markup any) error {
 	m := tgbotapi.NewMessage(chatID, text)
-
 	if markup != nil {
 		m.ReplyMarkup = markup
 	} else {
 		m.ReplyMarkup = MainKeyboard()
 	}
-
 	_, err := b.api.Send(m)
 	return err
 }
-func (b *Bot) setState(ctx context.Context, userID uuid.UUID, state string, chatID int64, k any) error {
-	s := domain.BotSession{UserID: userID, State: state, Data: "{}", ExpiresAt: time.Now().Add(2 * time.Minute)}
-	if err := b.db.WithContext(ctx).Where("user_id = ?", userID).Assign(s).FirstOrCreate(&s).Error; err != nil {
-		return err
-	}
-	return nil
+
+// setState وضعیت مکالمه‌ی کاربر و داده‌ی JSON آن را برای ۳۰ دقیقه ذخیره می‌کند.
+func (b *Bot) setState(ctx context.Context, userID uuid.UUID, state, data string) error {
+	s := domain.BotSession{UserID: userID, State: state, Data: data, ExpiresAt: time.Now().Add(30 * time.Minute)}
+	return b.db.WithContext(ctx).Where("user_id = ?", userID).Assign(s).FirstOrCreate(&s).Error
 }
 
-func (b *Bot) setStateAndReply(ctx context.Context, userID uuid.UUID, state string, chatID int64, text string, k any) error {
-	s := domain.BotSession{UserID: userID, State: state, Data: "{}", ExpiresAt: time.Now().Add(2 * time.Minute)}
-	if err := b.db.WithContext(ctx).Where("user_id = ?", userID).Assign(s).FirstOrCreate(&s).Error; err != nil {
+// setStateAndReply وضعیت را ذخیره و پیام راهنمای مرحله‌ی بعد را می‌فرستد.
+func (b *Bot) setStateAndReply(ctx context.Context, userID uuid.UUID, state, data string, chatID int64, text string, markup any) error {
+	if err := b.setState(ctx, userID, state, data); err != nil {
 		return err
 	}
-	return b.reply(chatID, text, k)
+	return b.reply(chatID, text, markup)
 }
 
-
-func (b *Bot) setTaskForOther(ctx context.Context, ownerID uuid.UUID, assigneeID uuid.UUID, titles []string, priority string) error {
+// setTaskForOther چند تسک را به کاربر دیگر واگذار می‌کند و هر دو طرف را خبر می‌کند.
+func (b *Bot) setTaskForOther(ctx context.Context, ownerID, assigneeID uuid.UUID, titles []string, priority string) error {
 	for _, title := range titles {
-
 		task := &domain.Task{OwnerID: ownerID, AssigneeID: assigneeID, Title: title, Priority: priority, Status: "pending"}
 		if err := b.tasks.CreateForOtherUser(ctx, task); err != nil {
 			return err
@@ -86,23 +88,16 @@ func (b *Bot) setTaskForOther(ctx context.Context, ownerID uuid.UUID, assigneeID
 	if err != nil {
 		return err
 	}
-	message := fmt.Sprintf("📣 گزارش پلنیکس\n%s یک تسک برای تو ثبت کرد:", owner.FirstName)
-	if err := b.reply(assignee.TelegramID, message, MainKeyboard()); err != nil {
+	if err := b.reply(assignee.TelegramID, fmt.Sprintf("📣 گزارش پلنیکس\n%s %d تسک برای تو ثبت کرد:", owner.FirstName, len(titles)), MainKeyboard()); err != nil {
 		return err
 	}
-	// notify owner that task was assigned
-	_ = b.reply(owner.TelegramID, fmt.Sprintf("تسک برای %s با موفقیت ثبت شد:", assignee.FirstName), MainKeyboard())
+	_ = b.reply(owner.TelegramID, fmt.Sprintf("ثبت %d تسک برای %s با موفقیت انجام شد ✅", len(titles), assignee.FirstName), MainKeyboard())
 	return nil
 }
 
-// getTargetTask sends the owner a summary of tasks they assigned to a target user
-func (b *Bot) getTargetTask(ctx context.Context, ownerID uuid.UUID, targetID uuid.UUID) error {
-	// fetch tasks where owner is ownerID and assignee is targetID
+// getTargetTask خلاصه‌ی وضعیت تسک‌های واگذارشده به کاربر هدف را برای مالک می‌فرستد.
+func (b *Bot) getTargetTask(ctx context.Context, ownerID, targetID uuid.UUID) error {
 	tasks, err := b.tasks.ListByOwnerAndAssignee(ctx, ownerID, targetID)
-	if err != nil {
-		return err
-	}
-	owner, err := b.users.GetByID(ctx, ownerID)
 	if err != nil {
 		return err
 	}
@@ -111,32 +106,28 @@ func (b *Bot) getTargetTask(ctx context.Context, ownerID uuid.UUID, targetID uui
 		return err
 	}
 	if len(tasks) == 0 {
-		return b.reply(owner.TelegramID, fmt.Sprintf("شما تا کنون به %s تسکی ندادید.", target.FirstName), MainKeyboard())
+		return b.reply(owner.TelegramID, fmt.Sprintf("شما تا کنون به %s تسکی نداده‌اید.", target.FirstName), MainKeyboard())
 	}
-	compeletText := fmt.Sprintf("📋 وضعیت تسک‌های واگذار شده به %s:\n انجام شده \n", target.FirstName)
-	pendingText := fmt.Sprintf("📋 وضعیت تسک‌های واگذار شده به %s:\n انجام نشده \n", target.FirstName)
-
+	done := fmt.Sprintf("✅ وضعیت تسک‌های واگذارشده به %s:\n\n", target.FirstName)
+	pending := fmt.Sprintf("⏳ وضعیت تسک‌های واگذارشده به %s:\n\n", target.FirstName)
 	for _, t := range tasks {
 		if t.Status == "completed" {
-			compeletText += FormatSmallInfo(&t) + "\n"
+			done += FormatSmallInfo(&t) + "\n"
 		} else {
-			pendingText += FormatSmallInfo(&t) + "\n"
+			pending += FormatSmallInfo(&t) + "\n"
 		}
 	}
-	b.reply(owner.TelegramID, pendingText, MainKeyboard())
-
-	return b.reply(owner.TelegramID, compeletText, MainKeyboard())
+	if err := b.reply(owner.TelegramID, pending, MainKeyboard()); err != nil {
+		return err
+	}
+	return b.reply(owner.TelegramID, done, MainKeyboard())
 }
 
+// sendInfoTask کارت کامل تسک را با دکمه‌های مدیریتی می‌فرستد.
 func (b *Bot) sendInfoTask(ctx context.Context, chatID int64, taskID uuid.UUID) error {
 	task, err := b.tasks.GetByID(ctx, taskID)
 	if err != nil {
 		return err
 	}
-
-	return b.reply(
-		chatID,
-		FormatTask(task),
-		TaskInlineKeyboard(task),
-	)
+	return b.reply(chatID, FormatTask(task), TaskInlineKeyboard(task))
 }
