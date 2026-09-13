@@ -98,6 +98,21 @@ func (s *UserService) UpdateProfile(ctx context.Context, userID uuid.UUID, first
 	return s.users.GetByID(ctx, userID)
 }
 
+// Name returns a display name for the user (first name or @username).
+func (s *UserService) Name(ctx context.Context, userID uuid.UUID) string {
+	u, err := s.users.GetByID(ctx, userID)
+	if err != nil {
+		return "—"
+	}
+	if u.FirstName != "" {
+		return u.FirstName
+	}
+	if u.Username != "" {
+		return "@" + u.Username
+	}
+	return "—"
+}
+
 // SetLanguage stores the bot display language (fa or en).
 func (s *UserService) SetLanguage(ctx context.Context, userID uuid.UUID, lang string) error {
 	if lang != "fa" && lang != "en" {

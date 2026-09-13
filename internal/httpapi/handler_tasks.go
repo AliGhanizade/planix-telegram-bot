@@ -20,32 +20,37 @@ var errInvalidStatus = errors.New("invalid status")
 // ---- task DTOs ----
 
 type taskResponse struct {
-	ID          string     `json:"id"`
-	Title       string     `json:"title"`
-	Description string     `json:"description"`
-	Priority    string     `json:"priority"`
-	Status      string     `json:"status"`
-	DueAt       *time.Time `json:"due_at"`
-	CompletedAt *time.Time `json:"completed_at"`
-	OwnerID     string     `json:"owner_id"`
-	AssigneeID  string     `json:"assignee_id"`
-	CreatedAt   time.Time  `json:"created_at"`
-	HasProof    bool       `json:"has_proof"`
+	ID               string     `json:"id"`
+	Title            string     `json:"title"`
+	Description      string     `json:"description"`
+	Priority         string     `json:"priority"`
+	Status           string     `json:"status"`
+	DueAt            *time.Time `json:"due_at"`
+	CompletedAt      *time.Time `json:"completed_at"`
+	OwnerID          string     `json:"owner_id"`
+	AssigneeID       string     `json:"assignee_id"`
+	CreatedAt        time.Time  `json:"created_at"`
+	HasProof         bool       `json:"has_proof"`
+	RequiresEvidence bool       `json:"requires_evidence"`
+	OwnerName        string     `json:"owner_name"`
+	AssigneeName     string     `json:"assignee_name"`
 }
 
 type createTaskReq struct {
-	Title       string     `json:"title" binding:"required,max=240"`
-	Description string     `json:"description"`
-	Priority    string     `json:"priority" binding:"omitempty,oneof=low normal high urgent"`
-	DueAt       *time.Time `json:"due_at"`
+	Title            string     `json:"title" binding:"required,max=240"`
+	Description      string     `json:"description"`
+	Priority         string     `json:"priority" binding:"omitempty,oneof=low normal high urgent"`
+	DueAt            *time.Time `json:"due_at"`
+	RequiresEvidence bool       `json:"requires_evidence"`
 }
 
 type updateTaskReq struct {
-	Title       *string          `json:"title" binding:"omitempty,max=240"`
-	Description *string          `json:"description"`
-	Priority    *string          `json:"priority" binding:"omitempty,oneof=low normal high urgent"`
-	DueAt       *json.RawMessage `json:"due_at"` // مقدار یا null برای حذف موعد
-	Status      *string          `json:"status" binding:"omitempty,oneof=pending completed cancelled"`
+	Title            *string          `json:"title" binding:"omitempty,max=240"`
+	Description      *string          `json:"description"`
+	Priority         *string          `json:"priority" binding:"omitempty,oneof=low normal high urgent"`
+	DueAt            *json.RawMessage `json:"due_at"` // value or null to clear
+	Status           *string          `json:"status" binding:"omitempty,oneof=pending completed cancelled"`
+	RequiresEvidence *bool            `json:"requires_evidence"`
 }
 
 type taskListResponse struct {
@@ -82,17 +87,20 @@ func (h *Handlers) toTaskResponse(ctx context.Context, t *domain.Task) taskRespo
 		hasProof = true
 	}
 	return taskResponse{
-		ID:          t.ID.String(),
-		Title:       t.Title,
-		Description: t.Description,
-		Priority:    t.Priority,
-		Status:      t.Status,
-		DueAt:       t.DueAt,
-		CompletedAt: t.CompletedAt,
-		OwnerID:     t.OwnerID.String(),
-		AssigneeID:  t.AssigneeID.String(),
-		CreatedAt:   t.CreatedAt,
-		HasProof:    hasProof,
+		ID:               t.ID.String(),
+		Title:            t.Title,
+		Description:      t.Description,
+		Priority:         t.Priority,
+		Status:           t.Status,
+		DueAt:            t.DueAt,
+		CompletedAt:      t.CompletedAt,
+		OwnerID:          t.OwnerID.String(),
+		AssigneeID:       t.AssigneeID.String(),
+		CreatedAt:        t.CreatedAt,
+		HasProof:         hasProof,
+		RequiresEvidence: t.RequiresEvidence,
+		OwnerName:        h.profiles.Name(ctx, t.OwnerID),
+		AssigneeName:     h.profiles.Name(ctx, t.AssigneeID),
 	}
 }
 
@@ -101,7 +109,7 @@ func (h *Handlers) listTasks(c *gin.Context) {
 	user := currentUser(c)
 	status := c.DefaultQuery("status", "pending")
 	switch status {
-	case "pending", "completed", "all", "cancelled":
+	case "pending", "from_others", "helpdesk", "completed", "all", "cancelled":
 	default:
 		fail(c, http.StatusBadRequest, "status نامعتبر است")
 		return
@@ -156,13 +164,14 @@ func (h *Handlers) createTask(c *gin.Context) {
 		priority = "normal"
 	}
 	task := &domain.Task{
-		OwnerID:     user.ID,
-		AssigneeID:  user.ID,
-		Title:       req.Title,
-		Description: req.Description,
-		Priority:    priority,
-		Status:      "pending",
-		DueAt:       req.DueAt,
+		OwnerID:          user.ID,
+		AssigneeID:       user.ID,
+		Title:            req.Title,
+		Description:      req.Description,
+		Priority:         priority,
+		Status:           "pending",
+		DueAt:            req.DueAt,
+		RequiresEvidence: req.RequiresEvidence,
 	}
 	if err := h.tasks.Create(c.Request.Context(), task); err != nil {
 		fail(c, http.StatusInternalServerError, "خطا در ثبت تسک")
@@ -247,6 +256,12 @@ func (h *Handlers) updateTask(c *gin.Context) {
 				fail(c, http.StatusInternalServerError, "خطا در ثبت موعد")
 				return
 			}
+		}
+	}
+	if req.RequiresEvidence != nil {
+		if err := h.tasks.SetEvidenceRequired(ctx, task.ID, *req.RequiresEvidence); err != nil {
+			fail(c, http.StatusInternalServerError, "خطا در ثبت مدرک")
+			return
 		}
 	}
 	if req.Status != nil {

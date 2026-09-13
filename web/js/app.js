@@ -176,7 +176,9 @@ async function loadTasks() {
     return;
   }
 
-  list.innerHTML = data.items.map((t) => `
+  list.innerHTML = data.items.map((t) => {
+    const delegated = t.owner_id !== t.assignee_id;
+    return `
     <div class="task-card" data-id="${t.id}">
       <div class="task-body">
         <p class="task-title ${t.status !== "pending" ? "done" : ""}">${esc(t.title)}</p>
@@ -185,18 +187,22 @@ async function loadTasks() {
           <span class="chip priority ${t.priority}">${priorityFa[t.priority] || t.priority}</span>
           <span class="chip status ${t.status}">${statusFa[t.status] || t.status}</span>
           <span class="chip">موعد: ${dueFmt(t.due_at)}</span>
+          ${t.requires_evidence ? '<span class="chip">🖼 نیاز به مدرک</span>' : ""}
           ${t.has_proof ? '<span class="chip proof" data-act="proof">📷 مشاهده مدرک</span>' : ""}
+          ${delegated ? `<span class="chip">👤 مالک: ${esc(t.owner_name)}</span>` : ""}
+          ${delegated ? `<span class="chip">🛠 مجری: ${esc(t.assignee_name)}</span>` : ""}
         </div>
       </div>
       <div class="task-actions">
         ${t.status === "pending"
           ? '<button class="btn small primary" data-act="done">انجام شد</button>'
-          : '<button class="btn small ghost" data-act="reopen">بازگشایی</button>'}
+          : (t.requires_evidence ? '<button class="btn small ghost" data-act="reopen">بازگشایی</button>' : "")}
         <button class="btn small ghost" data-act="edit">ویرایش</button>
         <button class="btn small danger" data-act="delete">حذف</button>
       </div>
     </div>
-  `).join("");
+  `;
+  }).join("");
 }
 
 $("#taskList").addEventListener("click", async (e) => {
@@ -256,6 +262,10 @@ function openTaskModal(task) {
       <label>موعد
         <input type="datetime-local" name="due" value="${toLocalInput(task?.due_at)}">
       </label>
+      <label class="check-row">
+        <input type="checkbox" name="requires_evidence" ${task?.requires_evidence ? "checked" : ""}>
+        نیاز به ارسال عکس مدرک دارد (با تیک خوردن این گزینه، بعد از انجام تسک قابل بازگشایی است)
+      </label>
       ${isEdit ? `<label>وضعیت
         <select name="status">
           <option value="pending" ${task.status === "pending" ? "selected" : ""}>باز</option>
@@ -278,6 +288,7 @@ function openTaskModal(task) {
       title: f.get("title").trim(),
       description: f.get("description"),
       priority: f.get("priority"),
+      requires_evidence: f.get("requires_evidence") === "on",
     };
     if (isEdit) {
       body.status = f.get("status");

@@ -10,6 +10,7 @@ dist/
 tmp/
 coverage.out
 *.exe
+__pycache__/
 
 # editors
 .idea/
