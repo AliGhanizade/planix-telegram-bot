@@ -231,7 +231,7 @@ func SearchResultsKeyboard(tasks []domain.Task) models.InlineKeyboardMarkup {
 	return models.InlineKeyboardMarkup{InlineKeyboard: rows}
 }
 
-// SettingsInlineKeyboard تنظیمات کاربر با وضعیت فعلی.
+// SettingsInlineKeyboard منوی تنظیمات کاربر.
 func SettingsInlineKeyboard(dailyReport bool) models.InlineKeyboardMarkup {
 	label := "گزارش روزانه: خاموش ❌"
 	style := ""
@@ -242,7 +242,21 @@ func SettingsInlineKeyboard(dailyReport bool) models.InlineKeyboardMarkup {
 	return models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{
 			{{Text: label, CallbackData: "settings:daily", Style: style}},
+			{{Text: "✏️ تغییر اطلاعات", CallbackData: "settings:profile", Style: StylePrimary}},
+			{{Text: "🌐 اتصال به پنل وب", CallbackData: "settings:web"}},
 			{{Text: "🏠 منوی اصلی", CallbackData: "nav:menu", Style: StylePrimary}},
+		},
+	}
+}
+
+// ProfileEditInlineKeyboard انتخاب فیلد برای ویرایش پروفایل.
+func ProfileEditInlineKeyboard() models.InlineKeyboardMarkup {
+	return models.InlineKeyboardMarkup{
+		InlineKeyboard: [][]models.InlineKeyboardButton{
+			{{Text: "🪪 نام", CallbackData: "settings:edit:firstname", Style: StylePrimary}},
+			{{Text: "🏷 نام خانوادگی", CallbackData: "settings:edit:lastname", Style: StylePrimary}},
+			{{Text: "🌍 تایم‌زون", CallbackData: "settings:edit:timezone", Style: StylePrimary}},
+			{{Text: "↩️ بازگشت", CallbackData: "settings:back", Style: StyleDanger}},
 		},
 	}
 }

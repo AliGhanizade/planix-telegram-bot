@@ -21,6 +21,10 @@ const (
 	stateWaitingTaskForOther    = "waiting_task_for_other"
 	stateWaitingStatusForOther  = "waiting_task_status_for_other"
 	stateWaitingSearch          = "waiting_search"
+
+	stateWaitingEditFirstName = "waiting_edit_first_name"
+	stateWaitingEditLastName  = "waiting_edit_last_name"
+	stateWaitingEditTimezone  = "waiting_edit_timezone"
 )
 
 // backRef مقصد بازگشت بعد از پایان یک جریان؛ برای سینک رابط کاربری.
@@ -105,7 +109,52 @@ func (b *Bot) checkState(ctx context.Context, u *domain.User, text string, chatI
 		return b.handleStatusInput(ctx, u, text, chatID)
 	case stateWaitingSearch:
 		return b.handleSearchInput(ctx, u, session, text, chatID)
+	case stateWaitingEditFirstName, stateWaitingEditLastName, stateWaitingEditTimezone:
+		return b.handleProfileEditInput(ctx, u, session, text)
 	}
+	return nil
+}
+
+// handleProfileEditInput مقدار جدید فیلد پروفایل را ذخیره و منوی ویرایش را دوباره رندر می‌کند.
+func (b *Bot) handleProfileEditInput(ctx context.Context, u *domain.User, session domain.BotSession, text string) error {
+	var data sessionData
+	_ = json.Unmarshal([]byte(session.Data), &data)
+
+	var firstName, lastName, timezone *string
+	value := strings.TrimSpace(text)
+	switch session.State {
+	case stateWaitingEditFirstName:
+		firstName = &value
+	case stateWaitingEditLastName:
+		if value == "-" {
+			empty := ""
+			lastName = &empty
+		} else {
+			lastName = &value
+		}
+	case stateWaitingEditTimezone:
+		timezone = &value
+	}
+
+	if _, err := b.profiles.UpdateProfile(ctx, u.ID, firstName, lastName, timezone); err != nil {
+		_, rerr := b.send(ctx, u.TelegramID, "⚠️ "+err.Error(), ui.CancelInlineKeyboard())
+		if rerr != nil {
+			return err
+		}
+		// نشست باز بماند تا کاربر مقدار درست بفرستد.
+		return nil
+	}
+
+	if err := b.clearSession(ctx, u.ID); err != nil {
+		return err
+	}
+
+	// سینک: منوی ویرایش در همان پیام قبلی بروزرسانی می‌شود.
+	if data.Back != nil {
+		b.showProfileEdit(ctx, u, data.Back.ChatID, data.Back.MessageID)
+		return nil
+	}
+	b.showProfileEdit(ctx, u, u.TelegramID, 0)
 	return nil
 }
 

@@ -135,15 +135,36 @@ func (b *Bot) cbUserPick(ctx context.Context, q *models.CallbackQuery) {
 	}
 }
 
-// cbSettings تغییر تنظیمات کاربر.
+// cbSettings کال‌بک‌های منوی تنظیمات را پردازش می‌کند.
 func (b *Bot) cbSettings(ctx context.Context, q *models.CallbackQuery) {
 	u, err := b.upsertUser(ctx, q.From)
 	if err != nil {
 		b.answer(ctx, q, "خطا! دوباره تلاش کن")
 		return
 	}
+	chatID, messageID, ok := cbOrigin(q)
+	if !ok {
+		chatID = u.TelegramID
+		messageID = 0
+	}
 
 	switch q.Data {
+	case "settings:profile":
+		b.answer(ctx, q, "")
+		b.showProfileEdit(ctx, u, chatID, messageID)
+
+	case "settings:web":
+		b.answer(ctx, q, "")
+		b.issueWebCodeFromBot(ctx, u, chatID, messageID)
+
+	case "settings:edit:firstname", "settings:edit:lastname", "settings:edit:timezone":
+		b.answer(ctx, q, "")
+		b.startProfileFieldEdit(ctx, u, q.Data, chatID, messageID)
+
+	case "settings:back":
+		b.answer(ctx, q, "")
+		b.showSettings(ctx, u, chatID, messageID)
+
 	case "settings:daily":
 		newValue := !u.DailyReport
 		if err := b.users.SetDailyReport(ctx, u.ID, newValue); err != nil {
@@ -156,10 +177,6 @@ func (b *Bot) cbSettings(ctx context.Context, q *models.CallbackQuery) {
 			b.answer(ctx, q, "گزارش روزانه روشن شد ✅")
 		} else {
 			b.answer(ctx, q, "گزارش روزانه خاموش شد ❌")
-		}
-		chatID, messageID, ok := cbOrigin(q)
-		if !ok {
-			return
 		}
 		b.showSettings(ctx, u, chatID, messageID)
 	}
