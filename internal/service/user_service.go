@@ -99,6 +99,11 @@ func (s *UserService) UpdateProfile(ctx context.Context, userID uuid.UUID, first
 	return s.users.GetByID(ctx, userID)
 }
 
+// GetUser returns a user by id.
+func (s *UserService) GetUser(ctx context.Context, userID uuid.UUID) (*domain.User, error) {
+	return s.users.GetByID(ctx, userID)
+}
+
 // Name returns a display name for the user (first name or @username).
 func (s *UserService) Name(ctx context.Context, userID uuid.UUID) string {
 	u, err := s.users.GetByID(ctx, userID)

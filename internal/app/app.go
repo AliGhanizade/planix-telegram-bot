@@ -57,7 +57,7 @@ func New() (*App, error) {
 
 	// scheduler: due date reminders and per user daily report times.
 	scheduler := cron.New(cron.WithSeconds())
-	if _, err = scheduler.AddFunc("* * * * * *", func() {
+	if _, err = scheduler.AddFunc("0 * * * * *", func() {
 		telegram.SendDailyReportsAtMinute(ctx, bot.TehranHHMM())
 	}); err != nil {
 		cancel()

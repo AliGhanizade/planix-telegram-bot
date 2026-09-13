@@ -373,3 +373,17 @@ func (s *TaskService) Cancel(ctx context.Context, taskID uuid.UUID) error {
 	}
 	return s.log(ctx, &task.OwnerID, "task", task.ID, "cancelled", nil)
 }
+
+// ListDelegatedFiltered lists the tasks this user delegated to others,
+// filterable by status and by assignee name, username, telegram id or title.
+func (s *TaskService) ListDelegatedFiltered(ctx context.Context, ownerID uuid.UUID, status, q string, page, size int) ([]domain.Task, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	total, err := s.tasks.CountDelegatedFiltered(ctx, ownerID, status, q)
+	if err != nil {
+		return nil, 0, err
+	}
+	tasks, err := s.tasks.ListDelegatedFiltered(ctx, ownerID, status, q, size, (page-1)*size)
+	return tasks, total, err
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/AliGhanizade/planix-telegram-bot/internal/bot/ui"
@@ -365,6 +366,13 @@ func (b *Bot) removeReportTime(ctx context.Context, q *models.CallbackQuery, u *
 	b.showReportTimes(ctx, u, chatID, messageID)
 }
 
+// reportGuard remembers which user/time pairs already got a report today
+// so the report can never be sent twice, even if the scheduler misfires.
+var reportGuard = struct {
+	mu   sync.Mutex
+	sent map[string]bool
+}{sent: map[string]bool{}}
+
 // SendDailyReportsAtMinute sends the daily report to every user whose
 // chosen time matches the current tehran time.
 func (b *Bot) SendDailyReportsAtMinute(ctx context.Context, hhmm string) {
@@ -374,11 +382,21 @@ func (b *Bot) SendDailyReportsAtMinute(ctx context.Context, hhmm string) {
 		return
 	}
 
+	today := time.Now().In(tehranLoc()).Format("2006-01-02")
 	sent := 0
 	for _, u := range users {
 		if !containsTime(parseReportTimes(u.ReportTimes), hhmm) {
 			continue
 		}
+
+		key := u.ID.String() + "|" + hhmm + "|" + today
+		reportGuard.mu.Lock()
+		if reportGuard.sent[key] {
+			reportGuard.mu.Unlock()
+			continue
+		}
+		reportGuard.sent[key] = true
+		reportGuard.mu.Unlock()
 		l := b.lang(&u)
 		tasks, err := b.tasks.Today(ctx, u.ID)
 		if err != nil {
@@ -416,11 +434,16 @@ func containsTime(times []string, value string) bool {
 	return false
 }
 
-// TehranHHMM returns the current tehran wall clock as HH:MM.
-func TehranHHMM() string {
+// tehranLoc is the timezone used for report scheduling.
+func tehranLoc() *time.Location {
 	loc, err := time.LoadLocation("Asia/Tehran")
 	if err != nil {
 		loc = time.UTC
 	}
-	return time.Now().In(loc).Format("15:04")
+	return loc
+}
+
+// TehranHHMM returns the current tehran wall clock as HH:MM.
+func TehranHHMM() string {
+	return time.Now().In(tehranLoc()).Format("15:04")
 }

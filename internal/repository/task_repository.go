@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/AliGhanizade/planix-telegram-bot/internal/domain"
@@ -163,4 +164,39 @@ func (r *TaskRepository) ListByDueRange(c context.Context, id uuid.UUID, from, t
 	return v, r.db.WithContext(c).
 		Where("assignee_id = ? AND status = ? AND due_at >= ? AND due_at < ?", id, "pending", from, to).
 		Order("due_at asc").Limit(limit).Offset(offset).Find(&v).Error
+}
+
+func (r *TaskRepository) CountDelegatedFiltered(c context.Context, ownerID uuid.UUID, status string, q string) (int64, error) {
+	var n int64
+	return n, r.delegatedQuery(c, ownerID, status, q).Model(&domain.Task{}).Count(&n).Error
+}
+
+func (r *TaskRepository) ListDelegatedFiltered(c context.Context, ownerID uuid.UUID, status string, q string, limit, offset int) ([]domain.Task, error) {
+	var v []domain.Task
+	err := r.delegatedQuery(c, ownerID, status, q).
+		Order("created_at desc").Limit(limit).Offset(offset).Find(&v).Error
+	return v, err
+}
+
+// delegatedQuery builds the help desk query: tasks this user delegated to
+// others, optionally filtered by status and by assignee name, username,
+// telegram id or task title.
+func (r *TaskRepository) delegatedQuery(c context.Context, ownerID uuid.UUID, status string, q string) *gorm.DB {
+	query := r.db.WithContext(c).
+		Where("owner_id = ? AND assignee_id <> ?", ownerID, ownerID)
+	if status == "pending" || status == "completed" || status == "cancelled" {
+		query = query.Where("status = ?", status)
+	}
+	if q != "" {
+		like := "%" + strings.ToLower(q) + "%"
+		query = query.Where(
+			"lower(title) LIKE ? OR assignee_id IN (?)",
+			like,
+			r.db.Model(&domain.User{}).
+				Select("id").
+				Where("lower(username) LIKE ? OR lower(first_name) LIKE ? OR lower(last_name) LIKE ? OR CAST(telegram_id AS TEXT) LIKE ?",
+					like, like, like, "%"+strings.TrimSpace(q)+"%"),
+		)
+	}
+	return query
 }

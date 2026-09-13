@@ -34,6 +34,8 @@ type taskResponse struct {
 	RequiresEvidence bool        `json:"requires_evidence"`
 	OwnerName        string      `json:"owner_name"`
 	AssigneeName     string      `json:"assignee_name"`
+	AssigneeUsername string      `json:"assignee_username"`
+	AssigneeTGID     int64       `json:"assignee_telegram_id"`
 	Folders          []folderRef `json:"folders"`
 }
 
@@ -115,6 +117,10 @@ func (h *Handlers) toTaskResponseFor(ctx context.Context, t *domain.Task, viewer
 		RequiresEvidence: t.RequiresEvidence,
 		OwnerName:        h.profiles.Name(ctx, t.OwnerID),
 		AssigneeName:     h.profiles.Name(ctx, t.AssigneeID),
+	}
+	if au, aerr := h.profiles.GetUser(ctx, t.AssigneeID); aerr == nil {
+		resp.AssigneeUsername = au.Username
+		resp.AssigneeTGID = au.TelegramID
 	}
 
 	views, ferr := h.folders.FoldersOfTask(ctx, viewerID, t.ID)
