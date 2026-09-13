@@ -27,5 +27,11 @@ func NewRouter(
 	h := NewHandlers(cfg, log, telegram, auth, profiles, tasks)
 	h.register(r)
 
+	// API پنل وب: مسیرهای عمومی با محدودیت نرخ + مسیرهای احراز هویت‌شده.
+	public := r.Group("/api", RateLimit(30))
+	authed := r.Group("/api", Auth(auth))
+	h.registerAuth(public)
+	h.registerAuthed(authed)
+
 	return r
 }

@@ -1,8 +1,11 @@
 package httpapi
 
 import (
+	"net/http"
+	"sync"
 	"time"
 
+	"github.com/AliGhanizade/planix-telegram-bot/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -80,4 +83,53 @@ func requestLoggerOf(c *gin.Context) *zap.Logger {
 		return l.(*zap.Logger)
 	}
 	return zap.NewNop()
+}
+
+// Auth میدل‌ور نشست وب: توکن Bearer را بررسی و کاربر را در کانتکست می‌گذارد.
+func Auth(auth *service.AuthService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token := bearerToken(c)
+		if token == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "توکن ارسال نشده است"})
+			return
+		}
+		user, err := auth.ValidateSession(c.Request.Context(), token)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "نشست نامعتبر یا منقضی است"})
+			return
+		}
+		c.Set(ctxUser, user)
+		c.Next()
+	}
+}
+
+// RateLimit محدودکننده‌ی ساده‌ی نرخ درخواست بر اساس IP (برای مسیرهای عمومی احراز هویت).
+func RateLimit(perMinute int) gin.HandlerFunc {
+	type bucket struct {
+		count int
+		reset time.Time
+	}
+	var mu sync.Mutex
+	buckets := map[string]*bucket{}
+
+	return func(c *gin.Context) {
+		ip := c.ClientIP()
+		now := time.Now()
+
+		mu.Lock()
+		b, ok := buckets[ip]
+		if !ok || now.After(b.reset) {
+			b = &bucket{count: 0, reset: now.Add(time.Minute)}
+			buckets[ip] = b
+		}
+		b.count++
+		allowed := b.count <= perMinute
+		mu.Unlock()
+
+		if !allowed {
+			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "درخواست‌های زیاد؛ کمی بعد تلاش کن"})
+			return
+		}
+		c.Next()
+	}
 }
