@@ -29,6 +29,7 @@ type User struct {
 	Timezone     string     `gorm:"default:Asia/Tehran" json:"timezone"`
 	IsActive     bool       `gorm:"default:true" json:"is_active"`
 	DailyReport  bool       `gorm:"default:true" json:"daily_report"`
+	ReportTimes  string     `gorm:"default:21:00" json:"report_times"`
 	Lang         string     `gorm:"default:fa" json:"lang"`
 	LastSeenAt   *time.Time `json:"last_seen_at"`
 }
@@ -102,4 +103,22 @@ type WebSession struct {
 	ExpiresAt  time.Time `gorm:"not null;index" json:"expires_at"`
 	LastSeenAt time.Time `gorm:"not null" json:"last_seen_at"`
 	UserAgent  string    `gorm:"size:255" json:"user_agent"`
+}
+
+// Folder is a named container for organizing tasks. Folders can nest
+// through ParentID and can be owned by the user or arrive from a delegator.
+type Folder struct {
+	BaseModel
+	OwnerID   uuid.UUID  `gorm:"type:uuid;not null;index" json:"owner_id"`
+	Name      string     `gorm:"size:80;not null" json:"name"`
+	ParentID  *uuid.UUID `gorm:"type:uuid;index" json:"parent_id"`
+	CreatedAt time.Time  `json:"created_at"`
+}
+
+// TaskFolderLink links a task into a folder. A task may live in several
+// folders at once; folders are only an organizing view.
+type TaskFolderLink struct {
+	BaseModel
+	TaskID   uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:idx_task_folder,priority:1" json:"task_id"`
+	FolderID uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:idx_task_folder,priority:2" json:"folder_id"`
 }

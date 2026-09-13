@@ -20,20 +20,27 @@ var errInvalidStatus = errors.New("invalid status")
 // ---- task DTOs ----
 
 type taskResponse struct {
-	ID               string     `json:"id"`
-	Title            string     `json:"title"`
-	Description      string     `json:"description"`
-	Priority         string     `json:"priority"`
-	Status           string     `json:"status"`
-	DueAt            *time.Time `json:"due_at"`
-	CompletedAt      *time.Time `json:"completed_at"`
-	OwnerID          string     `json:"owner_id"`
-	AssigneeID       string     `json:"assignee_id"`
-	CreatedAt        time.Time  `json:"created_at"`
-	HasProof         bool       `json:"has_proof"`
-	RequiresEvidence bool       `json:"requires_evidence"`
-	OwnerName        string     `json:"owner_name"`
-	AssigneeName     string     `json:"assignee_name"`
+	ID               string      `json:"id"`
+	Title            string      `json:"title"`
+	Description      string      `json:"description"`
+	Priority         string      `json:"priority"`
+	Status           string      `json:"status"`
+	DueAt            *time.Time  `json:"due_at"`
+	CompletedAt      *time.Time  `json:"completed_at"`
+	OwnerID          string      `json:"owner_id"`
+	AssigneeID       string      `json:"assignee_id"`
+	CreatedAt        time.Time   `json:"created_at"`
+	HasProof         bool        `json:"has_proof"`
+	RequiresEvidence bool        `json:"requires_evidence"`
+	OwnerName        string      `json:"owner_name"`
+	AssigneeName     string      `json:"assignee_name"`
+	Folders          []folderRef `json:"folders"`
+}
+
+// folderRef is a folder attached to a task.
+type folderRef struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 type createTaskReq struct {
@@ -42,6 +49,7 @@ type createTaskReq struct {
 	Priority         string     `json:"priority" binding:"omitempty,oneof=low normal high urgent"`
 	DueAt            *time.Time `json:"due_at"`
 	RequiresEvidence bool       `json:"requires_evidence"`
+	Assignee         string     `json:"assignee"` // optional: delegate to this telegram username or id
 }
 
 type updateTaskReq struct {
@@ -82,11 +90,17 @@ func (h *Handlers) registerTasks(authed *gin.RouterGroup) {
 // toTaskResponse converts the domain model into the task DTO.
 // hasProof marks tasks that carry a photo proof.
 func (h *Handlers) toTaskResponse(ctx context.Context, t *domain.Task) taskResponse {
+	return h.toTaskResponseFor(ctx, t, t.AssigneeID)
+}
+
+// toTaskResponseFor builds the dto for a viewer, so folder visibility
+// follows the person asking.
+func (h *Handlers) toTaskResponseFor(ctx context.Context, t *domain.Task, viewerID uuid.UUID) taskResponse {
 	hasProof := false
 	if _, err := h.tasks.LatestEvidence(ctx, t.ID); err == nil {
 		hasProof = true
 	}
-	return taskResponse{
+	resp := taskResponse{
 		ID:               t.ID.String(),
 		Title:            t.Title,
 		Description:      t.Description,
@@ -102,6 +116,14 @@ func (h *Handlers) toTaskResponse(ctx context.Context, t *domain.Task) taskRespo
 		OwnerName:        h.profiles.Name(ctx, t.OwnerID),
 		AssigneeName:     h.profiles.Name(ctx, t.AssigneeID),
 	}
+
+	views, ferr := h.folders.FoldersOfTask(ctx, viewerID, t.ID)
+	if ferr == nil {
+		for _, v := range views {
+			resp.Folders = append(resp.Folders, folderRef{ID: v.Folder.ID.String(), Name: v.Folder.Name})
+		}
+	}
+	return resp
 }
 
 // listTasks GET /api/tasks?status=&page=&q=
@@ -109,7 +131,7 @@ func (h *Handlers) listTasks(c *gin.Context) {
 	user := currentUser(c)
 	status := c.DefaultQuery("status", "pending")
 	switch status {
-	case "pending", "from_others", "helpdesk", "completed", "all", "cancelled":
+	case "pending", "from_others", "completed", "all", "cancelled", "today", "tomorrow", "upcoming", "overdue":
 	default:
 		fail(c, http.StatusBadRequest, "status نامعتبر است")
 		return
@@ -128,7 +150,7 @@ func (h *Handlers) listTasks(c *gin.Context) {
 		}
 		items := make([]taskResponse, 0, len(tasks))
 		for i := range tasks {
-			items = append(items, h.toTaskResponse(c.Request.Context(), &tasks[i]))
+			items = append(items, h.toTaskResponseFor(c.Request.Context(), &tasks[i], user.ID))
 		}
 		c.JSON(http.StatusOK, taskListResponse{Items: items, Page: 1, Pages: 1, Total: int64(len(items)), PageSize: len(items)})
 		return
@@ -141,7 +163,7 @@ func (h *Handlers) listTasks(c *gin.Context) {
 	}
 	items := make([]taskResponse, 0, len(tasks))
 	for i := range tasks {
-		items = append(items, h.toTaskResponse(c.Request.Context(), &tasks[i]))
+		items = append(items, h.toTaskResponseFor(c.Request.Context(), &tasks[i], user.ID))
 	}
 	pages := int((total + webPageSize - 1) / webPageSize)
 	if pages < 1 {
@@ -173,11 +195,32 @@ func (h *Handlers) createTask(c *gin.Context) {
 		DueAt:            req.DueAt,
 		RequiresEvidence: req.RequiresEvidence,
 	}
+
+	// optional delegation: assign the task to another user
+	if req.Assignee != "" {
+		target, err := h.profiles.FindByIdentifier(c.Request.Context(), req.Assignee)
+		if err != nil {
+			fail(c, http.StatusNotFound, "کاربر مقصد پیدا نشد؛ اول باید در تلگرام به بات استارت بدهد")
+			return
+		}
+		if target.ID == user.ID {
+			fail(c, http.StatusBadRequest, "نمی‌توانی تسک را به خودت واگذار کنی")
+			return
+		}
+		task.AssigneeID = target.ID
+	}
+
 	if err := h.tasks.Create(c.Request.Context(), task); err != nil {
 		fail(c, http.StatusInternalServerError, "خطا در ثبت تسک")
 		return
 	}
-	c.JSON(http.StatusCreated, h.toTaskResponse(c.Request.Context(), task))
+
+	// tell the assignee through the bot
+	if task.AssigneeID != user.ID {
+		h.telegram.NotifyAssignment(c.Request.Context(), task, user.FirstName)
+	}
+
+	c.JSON(http.StatusCreated, h.toTaskResponseFor(c.Request.Context(), task, user.ID))
 }
 
 // loadAccessibleTask fetches a task and checks user access.
@@ -206,7 +249,7 @@ func (h *Handlers) getTask(c *gin.Context) {
 	if !ok {
 		return
 	}
-	c.JSON(http.StatusOK, h.toTaskResponse(c.Request.Context(), task))
+	c.JSON(http.StatusOK, h.toTaskResponseFor(c.Request.Context(), task, currentUser(c).ID))
 }
 
 // updateTask PATCH /api/tasks/:id
@@ -276,7 +319,7 @@ func (h *Handlers) updateTask(c *gin.Context) {
 		fail(c, http.StatusInternalServerError, "خطای داخلی")
 		return
 	}
-	c.JSON(http.StatusOK, h.toTaskResponse(c.Request.Context(), updated))
+	c.JSON(http.StatusOK, h.toTaskResponseFor(c.Request.Context(), updated, currentUser(c).ID))
 }
 
 // applyStatus changes the task status through the service.
@@ -319,7 +362,7 @@ func (h *Handlers) completeTask(c *gin.Context) {
 		fail(c, http.StatusInternalServerError, "خطا در انجام تسک")
 		return
 	}
-	c.JSON(http.StatusOK, h.toTaskResponse(c.Request.Context(), updated))
+	c.JSON(http.StatusOK, h.toTaskResponseFor(c.Request.Context(), updated, currentUser(c).ID))
 }
 
 // reopenTask POST /api/tasks/:id/reopen
@@ -333,7 +376,7 @@ func (h *Handlers) reopenTask(c *gin.Context) {
 		fail(c, http.StatusInternalServerError, "خطا در بازگشایی")
 		return
 	}
-	c.JSON(http.StatusOK, h.toTaskResponse(c.Request.Context(), updated))
+	c.JSON(http.StatusOK, h.toTaskResponseFor(c.Request.Context(), updated, currentUser(c).ID))
 }
 
 // taskProof streams the proof photo straight from telegram.

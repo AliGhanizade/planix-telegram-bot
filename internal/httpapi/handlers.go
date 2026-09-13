@@ -20,11 +20,12 @@ type Handlers struct {
 	auth     *service.AuthService
 	profiles *service.UserService
 	tasks    *service.TaskService
+	folders  *service.FolderService
 }
 
 // NewHandlers builds the handlers with injected dependencies.
-func NewHandlers(cfg config.Config, log *zap.Logger, telegram *bot.Bot, auth *service.AuthService, profiles *service.UserService, tasks *service.TaskService) *Handlers {
-	return &Handlers{cfg: cfg, log: log, telegram: telegram, auth: auth, profiles: profiles, tasks: tasks}
+func NewHandlers(cfg config.Config, log *zap.Logger, telegram *bot.Bot, auth *service.AuthService, profiles *service.UserService, tasks *service.TaskService, folders *service.FolderService) *Handlers {
+	return &Handlers{cfg: cfg, log: log, telegram: telegram, auth: auth, profiles: profiles, tasks: tasks, folders: folders}
 }
 
 // register registers the public routes.

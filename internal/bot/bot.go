@@ -27,6 +27,7 @@ type Bot struct {
 	tasks    *service.TaskService
 	auth     *service.AuthService
 	profiles *service.UserService
+	folders  *service.FolderService
 	db       *gorm.DB
 	log      *zap.Logger
 	owner    string
@@ -35,7 +36,7 @@ type Bot struct {
 
 // New creates the telegram client and registers handlers; auth
 // and profile services are injected so bot and web share one service layer.
-func New(token, owner string, db *gorm.DB, log *zap.Logger, auth *service.AuthService, profiles *service.UserService) (*Bot, error) {
+func New(token, owner string, db *gorm.DB, log *zap.Logger, auth *service.AuthService, profiles *service.UserService, folders *service.FolderService) (*Bot, error) {
 	var b *Bot
 	api, err := tgbot.New(token,
 		tgbot.WithAllowedUpdates(tgbot.AllowedUpdates{"message", "callback_query"}),
@@ -49,7 +50,7 @@ func New(token, owner string, db *gorm.DB, log *zap.Logger, auth *service.AuthSe
 	if err != nil {
 		return nil, err
 	}
-	b = &Bot{api: api, users: repository.NewUser(db), tasks: service.NewTask(db), auth: auth, profiles: profiles, db: db, log: log, owner: owner}
+	b = &Bot{api: api, users: repository.NewUser(db), tasks: service.NewTask(db), auth: auth, profiles: profiles, folders: folders, db: db, log: log, owner: owner}
 	return b, nil
 }
 
@@ -165,6 +166,7 @@ func (b *Bot) edit(ctx context.Context, chatID int64, messageID int, text string
 		ChatID:      chatID,
 		MessageID:   messageID,
 		Text:        text,
+		ParseMode:   models.ParseModeHTML,
 		ReplyMarkup: markup,
 	})
 	if err != nil && strings.Contains(err.Error(), "message is not modified") {
@@ -254,6 +256,8 @@ func (b *Bot) onText(ctx context.Context, m *models.Message) {
 		b.sendWithKeyboard(ctx, m.Chat.ID, ui.HelpMessage(l), l)
 	case "/profile", "پروفایل", "👤 پروفایل", "Profile", "👤 Profile":
 		b.sendProfile(ctx, u, m.Chat.ID, 0)
+	case "پوشه‌ها", "Folders":
+		b.showFolders(ctx, u, m.Chat.ID, 0)
 	case "واگذاری تسک", "👥 واگذاری تسک", "👥 اعمال وظایف دیگران", "Delegate", "👥 Delegate":
 		b.startAssign(ctx, u, m.Chat.ID, 0)
 	case "وضعیت وظایف", "📊 وضعیت وظایف دیگران", "✅ وضعیت وظایف دیگران", "Delegated status", "📊 Delegated status":

@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -9,17 +10,18 @@ import (
 // ---- profile DTOs ----
 
 type profileResponse struct {
-	ID          string  `json:"id"`
-	TelegramID  int64   `json:"telegram_id"`
-	Username    string  `json:"username"`
-	FirstName   string  `json:"first_name"`
-	LastName    string  `json:"last_name"`
-	Timezone    string  `json:"timezone"`
-	DailyReport bool    `json:"daily_report"`
-	Pending     int64   `json:"pending_tasks"`
-	Completed   int64   `json:"completed_tasks"`
-	Cancelled   int64   `json:"cancelled_tasks"`
-	ProgressPct float64 `json:"progress_percent"`
+	ID          string   `json:"id"`
+	TelegramID  int64    `json:"telegram_id"`
+	Username    string   `json:"username"`
+	FirstName   string   `json:"first_name"`
+	LastName    string   `json:"last_name"`
+	Timezone    string   `json:"timezone"`
+	DailyReport bool     `json:"daily_report"`
+	ReportTimes []string `json:"report_times"`
+	Pending     int64    `json:"pending_tasks"`
+	Completed   int64    `json:"completed_tasks"`
+	Cancelled   int64    `json:"cancelled_tasks"`
+	ProgressPct float64  `json:"progress_percent"`
 }
 
 type updateProfileReq struct {
@@ -36,6 +38,7 @@ func (h *Handlers) registerProfile(authed *gin.RouterGroup) {
 		g.PATCH("", h.updateProfile)
 	}
 	g.PUT("/daily-report", h.setDailyReport)
+	g.PUT("/report-times", h.setReportTimes)
 	g.GET("/stats", h.getStats)
 }
 
@@ -64,6 +67,10 @@ func (h *Handlers) getProfile(c *gin.Context) {
 		fail(c, http.StatusInternalServerError, "خطای داخلی")
 		return
 	}
+	reportTimes := strings.Split(strings.TrimSpace(u.ReportTimes), ",")
+	if len(reportTimes) == 1 && reportTimes[0] == "" {
+		reportTimes = []string{}
+	}
 	c.JSON(http.StatusOK, profileResponse{
 		ID:          u.ID.String(),
 		TelegramID:  u.TelegramID,
@@ -76,6 +83,7 @@ func (h *Handlers) getProfile(c *gin.Context) {
 		Completed:   st.Completed,
 		Cancelled:   st.Cancelled,
 		ProgressPct: st.CompletionRate(),
+		ReportTimes: reportTimes,
 	})
 }
 
@@ -120,4 +128,22 @@ func (h *Handlers) getStats(c *gin.Context) {
 		"cancelled_tasks":  st.Cancelled,
 		"progress_percent": st.CompletionRate(),
 	})
+}
+
+// setReportTimes stores the user chosen daily report times (max 3).
+func (h *Handlers) setReportTimes(c *gin.Context) {
+	user := currentUser(c)
+	var req struct {
+		Times []string `json:"times" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		fail(c, http.StatusBadRequest, "times الزامی است")
+		return
+	}
+	times, err := h.profiles.SetReportTimes(c.Request.Context(), user.ID, req.Times)
+	if err != nil {
+		fail(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"report_times": times})
 }

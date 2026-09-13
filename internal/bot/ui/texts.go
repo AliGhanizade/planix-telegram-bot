@@ -695,3 +695,59 @@ func EvidenceToast(required bool, l Lang) string {
 	}
 	return "نیاز به مدرک خاموش شد ❌"
 }
+
+// FolderNewPrompt asks for a new folder name.
+func FolderNewPrompt(l Lang) string {
+	if l == En {
+		return "📝 Send the new folder name:"
+	}
+	return "📝 نام پوشه‌ی جدید را بفرست:"
+}
+
+// FolderEmpty is the message for an empty folder.
+func FolderEmpty(l Lang) string {
+	if l == En {
+		return "This folder is empty."
+	}
+	return "این پوشه خالی است."
+}
+
+// FolderCreated confirms a new folder.
+func FolderCreated(name string, l Lang) string {
+	if l == En {
+		return "📁 Folder <b>" + html.EscapeString(name) + "</b> created."
+	}
+	return "📁 پوشه‌ی <b>" + html.EscapeString(name) + "</b> ساخته شد."
+}
+
+// FolderLinkedToast confirms a task was put into a folder.
+func FolderLinkedToast(l Lang) string {
+	if l == En {
+		return "Task moved into the folder ✅"
+	}
+	return "تسک داخل پوشه قرار گرفت ✅"
+}
+
+// FolderUnlinkedToast confirms a task was taken out of a folder.
+func FolderUnlinkedToast(l Lang) string {
+	if l == En {
+		return "Task taken out of the folder ❌"
+	}
+	return "تسک از پوشه خارج شد ❌"
+}
+
+// ReportTimesTitle opens the report times editor.
+func ReportTimesTitle(times string, l Lang) string {
+	if l == En {
+		return "⏰ Daily report times\n\nCurrent: " + times + "\n\nTap a time to remove it, or add a new one. The report lists your open tasks at those times (Tehran time)."
+	}
+	return "⏰ ساعت‌های گزارش روزانه\n\nفعلی: " + times + "\n\nروی هر ساعت بزنی حذف می‌شود؛ با دکمه‌ی پایین ساعت جدید اضافه کن. در این ساعت‌ها فهرست تسک‌های بازت را می‌گیری (به وقت تهران)."
+}
+
+// InvalidTime is the reply for a bad time value.
+func InvalidTime(l Lang) string {
+	if l == En {
+		return "⚠️ Invalid value. Use HH:MM, like 14:30"
+	}
+	return "⚠️ مقدار درست نیست. با فرمت HH:MM بفرست، مثل 14:30"
+}

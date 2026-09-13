@@ -167,6 +167,14 @@ func (b *Bot) cbSettings(ctx context.Context, q *models.CallbackQuery) {
 		b.answer(ctx, q, "")
 		b.showSettings(ctx, u, chatID, messageID)
 
+	case "settings:times":
+		b.answer(ctx, q, "")
+		b.showReportTimes(ctx, u, chatID, messageID)
+
+	case "settings:addtime":
+		b.answer(ctx, q, "")
+		b.startAddReportTime(ctx, u, chatID, messageID)
+
 	case "settings:web":
 		b.answer(ctx, q, "")
 		b.issueWebCodeFromBot(ctx, u, chatID, messageID)

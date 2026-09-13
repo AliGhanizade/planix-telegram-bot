@@ -28,6 +28,10 @@ const (
 	stateWaitingEditTimezone  = "waiting_edit_timezone"
 
 	stateWaitingTaskProof = "waiting_task_proof"
+
+	stateWaitingFolderName = "waiting_folder_name"
+	stateWaitingFolderPick = "waiting_folder_pick"
+	stateWaitingReportTime = "waiting_report_time"
 )
 
 // backRef is where to re-render after a flow ends; keeps the ui in sync.
@@ -114,6 +118,10 @@ func (b *Bot) checkState(ctx context.Context, u *domain.User, text string, chatI
 		return b.handleSearchInput(ctx, u, session, text, chatID)
 	case stateWaitingEditFirstName, stateWaitingEditLastName, stateWaitingEditTimezone:
 		return b.handleProfileEditInput(ctx, u, session, text)
+	case stateWaitingFolderName:
+		return b.handleFolderNameInput(ctx, u, text, chatID)
+	case stateWaitingReportTime:
+		return b.handleReportTimeInput(ctx, u, text, chatID)
 	}
 	return nil
 }

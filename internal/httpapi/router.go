@@ -17,6 +17,7 @@ func NewRouter(
 	auth *service.AuthService,
 	profiles *service.UserService,
 	tasks *service.TaskService,
+	folders *service.FolderService,
 ) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -24,7 +25,7 @@ func NewRouter(
 	r.Use(CORS(cfg.WebCORSOrigin))
 	r.Use(RequestLogger(log))
 
-	h := NewHandlers(cfg, log, telegram, auth, profiles, tasks)
+	h := NewHandlers(cfg, log, telegram, auth, profiles, tasks, folders)
 	h.register(r)
 
 	// web panel api: public routes with rate limiting plus authed routes.
@@ -34,6 +35,7 @@ func NewRouter(
 	h.registerAuthed(authed)
 	h.registerTasks(authed)
 	h.registerProfile(authed)
+	h.registerFolders(authed)
 
 	return r
 }

@@ -35,6 +35,16 @@ func (b *Bot) onCallback(ctx context.Context, q *models.CallbackQuery) {
 		b.cbUserPick(ctx, q)
 	case strings.HasPrefix(data, "settings:"):
 		b.cbSettings(ctx, q)
+	case strings.HasPrefix(data, "folders:"):
+		b.cbFolders(ctx, q)
+	case strings.HasPrefix(data, "fnew"):
+		b.cbFolders(ctx, q)
+	case strings.HasPrefix(data, "fopen:"):
+		b.cbFolders(ctx, q)
+	case strings.HasPrefix(data, "fpick:"):
+		b.cbFolderPick(ctx, q, strings.TrimPrefix(data, "fpick:"))
+	case strings.HasPrefix(data, "rtime:"):
+		b.cbReportTimeRemove(ctx, q, strings.TrimPrefix(data, "rtime:"))
 	default:
 		b.answer(ctx, q, "")
 	}
@@ -458,4 +468,19 @@ func (b *Bot) cbTaskEvidenceToggle(ctx context.Context, q *models.CallbackQuery,
 	if err := b.renderTaskCard(ctx, chatID, messageID, id, origin, l); err != nil {
 		b.log.Error("render task card failed", zap.Error(err))
 	}
+}
+
+// cbReportTimeRemove removes one daily report time.
+func (b *Bot) cbReportTimeRemove(ctx context.Context, q *models.CallbackQuery, value string) {
+	u, err := b.upsertUser(ctx, q.From)
+	if err != nil {
+		b.answer(ctx, q, ui.ErrGeneric(ui.Fa))
+		return
+	}
+	chatID, messageID, ok := cbOrigin(q)
+	if !ok {
+		chatID = u.TelegramID
+		messageID = 0
+	}
+	b.removeReportTime(ctx, q, u, value, chatID, messageID)
 }

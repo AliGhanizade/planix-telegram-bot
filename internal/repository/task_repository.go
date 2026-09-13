@@ -150,3 +150,17 @@ func (r *TaskRepository) ListHelpdeskPaged(c context.Context, id uuid.UUID, limi
 		Where("owner_id = ? AND assignee_id <> ? AND status = ?", id, id, "pending").
 		Order("created_at desc").Limit(limit).Offset(offset).Find(&v).Error
 }
+
+func (r *TaskRepository) CountByDueRange(c context.Context, id uuid.UUID, from, to time.Time) (int64, error) {
+	var n int64
+	return n, r.db.WithContext(c).Model(&domain.Task{}).
+		Where("assignee_id = ? AND status = ? AND due_at >= ? AND due_at < ?", id, "pending", from, to).
+		Count(&n).Error
+}
+
+func (r *TaskRepository) ListByDueRange(c context.Context, id uuid.UUID, from, to time.Time, limit, offset int) ([]domain.Task, error) {
+	var v []domain.Task
+	return v, r.db.WithContext(c).
+		Where("assignee_id = ? AND status = ? AND due_at >= ? AND due_at < ?", id, "pending", from, to).
+		Order("due_at asc").Limit(limit).Offset(offset).Find(&v).Error
+}

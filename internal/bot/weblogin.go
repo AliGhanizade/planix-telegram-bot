@@ -51,3 +51,14 @@ func (b *Bot) issueWebCodeFromBot(ctx context.Context, u *domain.User, chatID in
 		b.log.Error("render web code failed", zap.Error(err))
 	}
 }
+
+// NotifyAssignment dms a user about a task just delegated to them from the web panel.
+func (b *Bot) NotifyAssignment(ctx context.Context, task *domain.Task, ownerName string) {
+	assignee, err := b.users.GetByID(ctx, task.AssigneeID)
+	if err != nil {
+		return
+	}
+	l := b.lang(assignee)
+	text := ui.AssignedNotify(ownerName, 1, l) + "\n" + ui.FormatSmallInfo(task, l)
+	_, _ = b.sendWithKeyboard(ctx, assignee.TelegramID, text, l)
+}

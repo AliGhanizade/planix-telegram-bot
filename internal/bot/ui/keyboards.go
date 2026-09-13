@@ -51,7 +51,7 @@ func MainKeyboard(l Lang) models.ReplyKeyboardMarkup {
 		Keyboard: [][]models.KeyboardButton{
 			{kb("تسک جدید", StyleSuccess), kb("برنامه امروز", StylePrimary)},
 			{kb("جستجو", StylePrimary), kb("واگذاری تسک", StyleSuccess), kb("وضعیت وظایف", StylePrimary)},
-			{kb("پروفایل", ""), kb("تنظیمات", ""), kb("راهنما", "")},
+			{kb("پوشه‌ها", ""), kb("پروفایل", ""), kb("تنظیمات", ""), kb("راهنما", "")},
 		},
 		IsPersistent:          true,
 		ResizeKeyboard:        true,
@@ -129,12 +129,22 @@ func TaskListKeyboard(tasks []domain.Task, f ListFilter, page, pages int, l Lang
 	}
 
 	// filter tabs - the active tab is highlighted
+	today, tomorrow, upcoming, overdue := "📅 امروز", "☀️ فردا", "🗓 هفته‌ی پیش‌رو", "⏰ عقب‌افتاده"
+	if l == En {
+		today, tomorrow, upcoming, overdue = "📅 Today", "☀️ Tomorrow", "🗓 This week", "⏰ Overdue"
+	}
 	rows = append(rows, []models.InlineKeyboardButton{
 		filterButton(mine, FilterPending, f, l),
 		filterButton(fromOthers, FilterFromOthers, f, l),
 		filterButton(helpdesk, FilterHelpdesk, f, l),
 	})
 	rows = append(rows, []models.InlineKeyboardButton{
+		filterButton(today, FilterToday, f, l),
+		filterButton(tomorrow, FilterTomorrow, f, l),
+		filterButton(upcoming, FilterUpcoming, f, l),
+	})
+	rows = append(rows, []models.InlineKeyboardButton{
+		filterButton(overdue, FilterOverdue, f, l),
 		filterButton(completed, FilterCompleted, f, l),
 		filterButton(cancelled, FilterCancelled, f, l),
 		filterButton(all, FilterAll, f, l),
@@ -167,6 +177,22 @@ func filterButton(label string, f, active ListFilter, l Lang) models.InlineKeybo
 	return ib(label, data, "")
 }
 
+// TasksInlineKeyboard gives each task an info and a done button.
+func TasksInlineKeyboard(tasks []domain.Task, l Lang) models.InlineKeyboardMarkup {
+	var rows [][]models.InlineKeyboardButton
+	for _, t := range tasks {
+		if t.Status == "completed" {
+			continue
+		}
+		o := NoOrigin
+		rows = append(rows, []models.InlineKeyboardButton{
+			{Text: " ℹ️ " + Truncate(t.Title, 36), CallbackData: TaskData("info", t.ID, o)},
+			{Text: "✅", CallbackData: TaskData("done", t.ID, o), Style: StyleSuccess},
+		})
+	}
+	return models.InlineKeyboardMarkup{InlineKeyboard: rows}
+}
+
 // TaskCardKeyboard builds the colored task management card.
 func TaskCardKeyboard(task *domain.Task, o TaskOrigin, l Lang, hasProof bool) models.InlineKeyboardMarkup {
 	var rows [][]models.InlineKeyboardButton
@@ -179,6 +205,7 @@ func TaskCardKeyboard(task *domain.Task, o TaskOrigin, l Lang, hasProof bool) mo
 	reopen := "🔄 بازگشایی تسک"
 	proof, viewProof := "📷 ارسال عکس", "📷 مشاهده عکس"
 	evidence := evidenceLabel(task.RequiresEvidence, l)
+	foldersBtn := "📁 پوشه‌ها"
 	if l == En {
 		editTitle, editDesc = "📝 Title", "📄 Description"
 		editDue, editPrio = "📅 Due date", "⚡ Priority"
@@ -187,6 +214,7 @@ func TaskCardKeyboard(task *domain.Task, o TaskOrigin, l Lang, hasProof bool) mo
 		doneBtn = "✅ Done"
 		reopen = "🔄 Reopen task"
 		proof, viewProof = "📷 Send photo", "📷 View photo"
+		foldersBtn = "📁 Folders"
 	}
 
 	if task.Status == "completed" {
@@ -204,6 +232,7 @@ func TaskCardKeyboard(task *domain.Task, o TaskOrigin, l Lang, hasProof bool) mo
 
 	rows = append(rows, []models.InlineKeyboardButton{
 		ib(evidence, TaskData("evidence", task.ID, o), ""),
+		ib(foldersBtn, TaskData("folders", task.ID, o), ""),
 	})
 
 	rows = append(rows, []models.InlineKeyboardButton{
@@ -373,13 +402,16 @@ func SettingsInlineKeyboard(dailyReport bool, l Lang) models.InlineKeyboardMarku
 		style = StyleSuccess
 	}
 	edit, web := "✏️ تغییر اطلاعات", "🌐 اتصال به پنل وب"
+	timesBtn := "⏰ ساعت‌های گزارش"
 	if l == En {
 		edit, web = "✏️ Edit info", "🌐 Link web panel"
+		timesBtn = "⏰ Report times"
 	}
 	return models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{
 			{{Text: daily, CallbackData: "settings:daily", Style: style}},
 			{{Text: edit, CallbackData: "settings:profile", Style: StylePrimary}},
+			{{Text: timesBtn, CallbackData: "settings:times"}},
 			{{Text: web, CallbackData: "settings:web"}},
 			{{Text: LanguageLabel(l), CallbackData: "settings:lang", Style: StylePrimary}},
 			{{Text: BackLabel(l), CallbackData: "nav:menu", Style: StylePrimary}},
@@ -414,4 +446,38 @@ func TodayInlineKeyboard(l Lang) models.InlineKeyboardMarkup {
 			{{Text: label, CallbackData: "nav:today", Style: StylePrimary}},
 		},
 	}
+}
+
+// FolderPickKeyboard lists the user folders as toggle buttons for a task.
+func FolderPickKeyboard(folders []FolderRef, l Lang) models.InlineKeyboardMarkup {
+	var rows [][]models.InlineKeyboardButton
+	for _, f := range folders {
+		label := "📁 " + Truncate(f.Name, 30)
+		if f.Linked {
+			label = "✅ " + label
+		}
+		rows = append(rows, []models.InlineKeyboardButton{
+			{Text: label, CallbackData: "fpick:" + f.ID},
+		})
+	}
+	if len(rows) == 0 {
+		empty := "هنوز پوشه‌ای نساخته‌ای"
+		if l == En {
+			empty = "No folders yet"
+		}
+		rows = append(rows, []models.InlineKeyboardButton{
+			{Text: empty, CallbackData: "nav:noop"},
+		})
+	}
+	rows = append(rows, []models.InlineKeyboardButton{
+		{Text: BackLabel(l), CallbackData: "state:cancel", Style: StylePrimary},
+	})
+	return models.InlineKeyboardMarkup{InlineKeyboard: rows}
+}
+
+// FolderRef is a folder shown in a pick list.
+type FolderRef struct {
+	ID     string
+	Name   string
+	Linked bool
 }

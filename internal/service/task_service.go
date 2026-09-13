@@ -19,11 +19,12 @@ type TaskService struct {
 	db       *gorm.DB
 	tasks    *repository.TaskRepository
 	evidence *repository.EvidenceRepository
+	users    *repository.UserRepository
 }
 
 // NewTask builds the task service.
 func NewTask(db *gorm.DB) *TaskService {
-	return &TaskService{db: db, tasks: repository.NewTask(db), evidence: repository.NewEvidence(db)}
+	return &TaskService{db: db, tasks: repository.NewTask(db), evidence: repository.NewEvidence(db), users: repository.NewUser(db)}
 }
 
 // SavePhotoEvidence stores a photo the user sent as proof for a task.
@@ -165,6 +166,30 @@ func (s *TaskService) UpdateDescription(ctx context.Context, taskID uuid.UUID, d
 	return s.log(ctx, &task.OwnerID, "task", task.ID, "updated_description", nil)
 }
 
+// dueRange turns a time filter into a due date window in the user timezone.
+func dueRange(filter string, now time.Time, tz string) (time.Time, time.Time, bool) {
+	loc, err := time.LoadLocation(tz)
+	if err != nil {
+		loc = time.UTC
+	}
+	n := now.In(loc)
+	switch filter {
+	case "today":
+		y, m, d := n.Date()
+		start := time.Date(y, m, d, 0, 0, 0, 0, loc)
+		return start, start.AddDate(0, 0, 1), true
+	case "tomorrow":
+		start := n.AddDate(0, 0, 1)
+		y, m, d := start.Date()
+		return time.Date(y, m, d, 0, 0, 0, 0, loc), time.Date(y, m, d, 0, 0, 0, 0, loc).AddDate(0, 0, 1), true
+	case "upcoming":
+		return n, n.AddDate(0, 0, 7), true
+	case "overdue":
+		return time.Time{}, n, true
+	}
+	return n, n, false
+}
+
 // TaskStats holds the task stats of a user.
 type TaskStats struct {
 	Pending   int64
@@ -248,6 +273,19 @@ func (s *TaskService) ListFiltered(ctx context.Context, userID uuid.UUID, filter
 	var err error
 
 	switch filter {
+	case "today", "tomorrow", "upcoming", "overdue":
+		user, uerr := s.users.GetByID(ctx, userID)
+		if uerr != nil {
+			return nil, 0, uerr
+		}
+		from, to, ok := dueRange(filter, time.Now(), user.Timezone)
+		if !ok {
+			return nil, 0, fmt.Errorf("invalid filter: %s", filter)
+		}
+		if total, terr := s.tasks.CountByDueRange(ctx, userID, from, to); terr == nil {
+			tasks, err = s.tasks.ListByDueRange(ctx, userID, from, to, size, offset)
+			return tasks, total, err
+		}
 	case "from_others":
 		if total, err = s.tasks.CountDelegatedToMe(ctx, userID); err == nil {
 			tasks, err = s.tasks.ListDelegatedToMePaged(ctx, userID, size, offset)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -123,6 +124,43 @@ func (s *UserService) SetLanguage(ctx context.Context, userID uuid.UUID, lang st
 	}
 	s.audit(ctx, userID, "language_changed", []string{lang})
 	return nil
+}
+
+// maxReportTimes is how many daily report times a user can set.
+const maxReportTimes = 3
+
+// SetReportTimes stores up to three daily report times (HH:MM).
+func (s *UserService) SetReportTimes(ctx context.Context, userID uuid.UUID, times []string) ([]string, error) {
+	clean := make([]string, 0, len(times))
+	seen := map[string]bool{}
+	for _, t := range times {
+		t = strings.TrimSpace(t)
+		if _, err := time.Parse("15:04", t); err != nil {
+			return nil, fmt.Errorf("invalid time: %s", t)
+		}
+		if !seen[t] {
+			seen[t] = true
+			clean = append(clean, t)
+		}
+	}
+	if len(clean) > maxReportTimes {
+		return nil, fmt.Errorf("at most %d report times are allowed", maxReportTimes)
+	}
+	if err := s.db.WithContext(ctx).Model(&domain.User{}).Where("id = ?", userID).
+		Update("report_times", strings.Join(clean, ",")).Error; err != nil {
+		return nil, err
+	}
+	s.audit(ctx, userID, "report_times_changed", clean)
+	return clean, nil
+}
+
+// FindByIdentifier resolves a user by telegram username or numeric id.
+func (s *UserService) FindByIdentifier(ctx context.Context, identifier string) (*domain.User, error) {
+	identifier = strings.TrimPrefix(strings.TrimSpace(identifier), "@")
+	if id, err := strconv.ParseInt(identifier, 10, 64); err == nil {
+		return s.users.GetByTelegramID(ctx, id)
+	}
+	return s.users.GetByUsername(ctx, identifier)
 }
 
 // SetDailyReport turns the daily report on or off.

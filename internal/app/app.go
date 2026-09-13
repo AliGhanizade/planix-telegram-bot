@@ -44,8 +44,9 @@ func New() (*App, error) {
 	// services shared by the bot and the web panel.
 	authSvc := service.NewAuthService(db, log)
 	profileSvc := service.NewUserService(db, log)
+	folderSvc := service.NewFolderService(db, log)
 
-	telegram, err := bot.New(c.TelegramBotToken, c.OwnerUsername, db, log, authSvc, profileSvc)
+	telegram, err := bot.New(c.TelegramBotToken, c.OwnerUsername, db, log, authSvc, profileSvc, folderSvc)
 	if err != nil {
 		return nil, fmt.Errorf("create telegram bot: %w", err)
 	}
@@ -54,13 +55,13 @@ func New() (*App, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	go telegram.Run(ctx)
 
-	// scheduler: daily report and due date reminders.
+	// scheduler: due date reminders and per user daily report times.
 	scheduler := cron.New(cron.WithSeconds())
-	if _, err = scheduler.AddFunc(c.DailyReportCron, func() {
-		telegram.SendDailyReports(ctx)
+	if _, err = scheduler.AddFunc("* * * * *", func() {
+		telegram.SendDailyReportsAtMinute(ctx, bot.TehranHHMM())
 	}); err != nil {
 		cancel()
-		return nil, fmt.Errorf("invalid DAILY_REPORT_CRON: %w", err)
+		return nil, fmt.Errorf("invalid report schedule: %w", err)
 	}
 	if _, err = scheduler.AddFunc(c.ReminderCron, func() {
 		telegram.SendDueReminders(ctx, time.Duration(c.ReminderLeadMinutes)*time.Minute)
@@ -73,7 +74,7 @@ func New() (*App, error) {
 	return &App{
 		Config: c,
 		Logger: log,
-		Router: httpapi.NewRouter(c, log, telegram, authSvc, profileSvc, telegram.Tasks()),
+		Router: httpapi.NewRouter(c, log, telegram, authSvc, profileSvc, telegram.Tasks(), folderSvc),
 		Bot:    telegram,
 		cron:   scheduler,
 		stop:   cancel,

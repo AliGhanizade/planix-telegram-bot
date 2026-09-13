@@ -17,6 +17,10 @@ const (
 	FilterPending    ListFilter = "pending"
 	FilterFromOthers ListFilter = "from_others"
 	FilterHelpdesk   ListFilter = "helpdesk"
+	FilterToday      ListFilter = "today"
+	FilterTomorrow   ListFilter = "tomorrow"
+	FilterUpcoming   ListFilter = "upcoming"
+	FilterOverdue    ListFilter = "overdue"
 	FilterCompleted  ListFilter = "completed"
 	FilterCancelled  ListFilter = "cancelled"
 	FilterAll        ListFilter = "all"
@@ -30,6 +34,14 @@ func (f ListFilter) Label(l Lang) string {
 			return "From others"
 		case FilterHelpdesk:
 			return "Help desk"
+		case FilterToday:
+			return "Today"
+		case FilterTomorrow:
+			return "Tomorrow"
+		case FilterUpcoming:
+			return "Upcoming week"
+		case FilterOverdue:
+			return "Overdue"
 		case FilterCompleted:
 			return "Completed"
 		case FilterCancelled:
@@ -64,6 +76,14 @@ func (f ListFilter) EmptyText(l Lang) string {
 			return "Nobody has delegated a task to you yet."
 		case FilterHelpdesk:
 			return "You haven't delegated anything yet; nothing to track."
+		case FilterToday:
+			return "Nothing due today."
+		case FilterTomorrow:
+			return "Nothing due tomorrow."
+		case FilterUpcoming:
+			return "Nothing due in the next week."
+		case FilterOverdue:
+			return "Nothing overdue; well done!"
 		case FilterCompleted:
 			return "You haven't finished anything yet; now is a good start."
 		case FilterCancelled:
@@ -97,6 +117,14 @@ func ParseListFilter(s string) ListFilter {
 		return FilterFromOthers
 	case string(FilterHelpdesk):
 		return FilterHelpdesk
+	case string(FilterToday):
+		return FilterToday
+	case string(FilterTomorrow):
+		return FilterTomorrow
+	case string(FilterUpcoming):
+		return FilterUpcoming
+	case string(FilterOverdue):
+		return FilterOverdue
 	case string(FilterCompleted):
 		return FilterCompleted
 	case string(FilterCancelled):
