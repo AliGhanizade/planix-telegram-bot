@@ -25,9 +25,10 @@ func (b *Bot) cbList(ctx context.Context, q *models.CallbackQuery) {
 
 	u, err := b.upsertUser(ctx, q.From)
 	if err != nil {
-		b.answer(ctx, q, "خطا! دوباره تلاش کن")
+		b.answer(ctx, q, ui.ErrGeneric(b.lang(u)))
 		return
 	}
+	l := b.lang(u)
 
 	b.answer(ctx, q, "")
 	chatID, messageID, ok := cbOrigin(q)
@@ -35,14 +36,14 @@ func (b *Bot) cbList(ctx context.Context, q *models.CallbackQuery) {
 		chatID = u.TelegramID
 		messageID = 0
 	}
-	if err := b.renderTaskList(ctx, chatID, messageID, u.ID, f, page); err != nil {
+	if err := b.renderTaskList(ctx, chatID, messageID, u.ID, f, page, l); err != nil {
 		b.log.Error("render task list failed", zap.Error(err))
 	}
 }
 
 // renderTaskList renders the user task list with filter and pagination.
 // when messageID is greater than zero the same message is edited in place (ui sync).
-func (b *Bot) renderTaskList(ctx context.Context, chatID int64, messageID int, userID uuid.UUID, f ui.ListFilter, page int) error {
+func (b *Bot) renderTaskList(ctx context.Context, chatID int64, messageID int, userID uuid.UUID, f ui.ListFilter, page int, l ui.Lang) error {
 	tasks, total, err := b.tasks.ListFiltered(ctx, userID, string(f), page, ui.PageSize)
 	if err != nil {
 		return err
@@ -56,27 +57,27 @@ func (b *Bot) renderTaskList(ctx context.Context, chatID int64, messageID int, u
 		page = pages
 	}
 
-	text := fmt.Sprintf("📋 %s — صفحه‌ی %d از %d\n\n", f.Label(), page, pages)
+	text := ui.ListHeader(f.Label(l), page, pages, l)
 	if len(tasks) == 0 {
-		text += f.EmptyText()
+		text += f.EmptyText(l)
 	} else {
 		for i, t := range tasks {
-			text += fmt.Sprintf("%d. %s\n", (page-1)*ui.PageSize+i+1, ui.FormatSmallInfo(&t))
+			text += fmt.Sprintf("%d. %s\n", (page-1)*ui.PageSize+i+1, ui.FormatSmallInfo(&t, l))
 		}
 	}
 
-	markup := ui.TaskListKeyboard(tasks, f, page, pages)
+	markup := ui.TaskListKeyboard(tasks, f, page, pages, l)
 	return b.render(ctx, chatID, messageID, text, markup)
 }
 
 // renderTaskCard renders the full task card with management buttons.
-func (b *Bot) renderTaskCard(ctx context.Context, chatID int64, messageID int, taskID uuid.UUID, o ui.TaskOrigin) error {
+func (b *Bot) renderTaskCard(ctx context.Context, chatID int64, messageID int, taskID uuid.UUID, o ui.TaskOrigin, l ui.Lang) error {
 	task, err := b.tasks.GetByID(ctx, taskID)
 	if err != nil {
 		return err
 	}
-	text := "🗂 کارت تسک\n\n" + ui.FormatTask(task)
-	return b.render(ctx, chatID, messageID, text, ui.TaskCardKeyboard(task, o))
+	text := ui.CardHeader(l) + ui.FormatTask(task, l)
+	return b.render(ctx, chatID, messageID, text, ui.TaskCardKeyboard(task, o, l))
 }
 
 // notifyOwner tells the owner when someone works on their delegated task.
@@ -89,17 +90,18 @@ func (b *Bot) notifyOwner(ctx context.Context, task *domain.Task, actor string) 
 		b.log.Warn("fetch owner failed", zap.Error(err))
 		return
 	}
-	verb := "انجام داد"
+	ownerLang := b.lang(owner)
+	text := ui.OwnerDoneNotify(actor, task.Title, ownerLang)
 	if task.Status != "completed" {
-		verb = "بازگشایی کرد"
+		text = ui.OwnerReopenedNotify(actor, task.Title, ownerLang)
 	}
-	if _, err := b.sendWithKeyboard(ctx, owner.TelegramID, fmt.Sprintf("📣 %s تسک «%s» را %s.", actor, task.Title, verb)); err != nil {
+	if _, err := b.sendWithKeyboard(ctx, owner.TelegramID, text, ownerLang); err != nil {
 		b.log.Warn("notify owner failed", zap.Error(err))
 	}
 }
 
 // setTaskForOther delegates several tasks to another user and notifies both sides.
-func (b *Bot) setTaskForOther(ctx context.Context, ownerID, assigneeID uuid.UUID, titles []string, priority string) error {
+func (b *Bot) setTaskForOther(ctx context.Context, ownerID, assigneeID uuid.UUID, titles []string, priority string, l ui.Lang) error {
 	for _, title := range titles {
 		task := &domain.Task{OwnerID: ownerID, AssigneeID: assigneeID, Title: title, Priority: priority, Status: "pending"}
 		if err := b.tasks.CreateForOtherUser(ctx, task); err != nil {
@@ -115,10 +117,10 @@ func (b *Bot) setTaskForOther(ctx context.Context, ownerID, assigneeID uuid.UUID
 		return err
 	}
 	if _, err := b.sendWithKeyboard(ctx, assignee.TelegramID,
-		fmt.Sprintf("📣 گزارش پلنیکس\n%s %d تسک برای تو ثبت کرد:", owner.FirstName, len(titles))); err != nil {
+		ui.AssignedNotify(owner.FirstName, len(titles), b.lang(assignee)), b.lang(assignee)); err != nil {
 		return err
 	}
 	_, _ = b.sendWithKeyboard(ctx, owner.TelegramID,
-		fmt.Sprintf("ثبت %d تسک برای %s با موفقیت انجام شد ✅", len(titles), assignee.FirstName))
+		ui.AssignedConfirm(len(titles), assignee.FirstName, l), l)
 	return nil
 }

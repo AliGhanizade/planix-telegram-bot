@@ -20,19 +20,37 @@ const (
 )
 
 // Label is the display name of the filter.
-func (f ListFilter) Label() string {
-	switch f {
-	case FilterCompleted:
+func (f ListFilter) Label(l Lang) string {
+	if f == FilterCompleted {
+		if l == En {
+			return "Completed"
+		}
 		return "انجام‌شده‌ها"
-	case FilterAll:
-		return "همه‌ی تسک‌ها"
-	default:
-		return "برنامه امروز"
 	}
+	if f == FilterAll {
+		if l == En {
+			return "All tasks"
+		}
+		return "همه‌ی تسک‌ها"
+	}
+	if l == En {
+		return "Today's plan"
+	}
+	return "برنامه امروز"
 }
 
 // EmptyText is the message shown for an empty list.
-func (f ListFilter) EmptyText() string {
+func (f ListFilter) EmptyText(l Lang) string {
+	if l == En {
+		switch f {
+		case FilterCompleted:
+			return "You haven't finished anything yet; now is a good start 💪"
+		case FilterAll:
+			return "No tasks yet. Start with ➕ New task!"
+		default:
+			return "No open tasks today; a fresh start awaits ✨"
+		}
+	}
 	switch f {
 	case FilterCompleted:
 		return "هنوز تسکی را تمام نکرده‌ای؛ یک شروع خوب، همین حالاست 💪"

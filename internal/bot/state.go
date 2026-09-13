@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -137,7 +136,7 @@ func (b *Bot) handleProfileEditInput(ctx context.Context, u *domain.User, sessio
 	}
 
 	if _, err := b.profiles.UpdateProfile(ctx, u.ID, firstName, lastName, timezone); err != nil {
-		_, rerr := b.send(ctx, u.TelegramID, "⚠️ "+err.Error(), ui.CancelInlineKeyboard())
+		_, rerr := b.send(ctx, u.TelegramID, ui.ValidationError(b.lang(u)), ui.CancelInlineKeyboard(b.lang(u)))
 		if rerr != nil {
 			return err
 		}
@@ -176,7 +175,7 @@ func (b *Bot) handleTitleInput(ctx context.Context, u *domain.User, session doma
 			return err
 		}
 		if data.Back != nil {
-			return b.renderTaskCard(ctx, data.Back.ChatID, data.Back.MessageID, id, data.Back.origin())
+			return b.renderTaskCard(ctx, data.Back.ChatID, data.Back.MessageID, id, data.Back.origin(), b.lang(u))
 		}
 		return nil
 	}
@@ -190,8 +189,8 @@ func (b *Bot) handleTitleInput(ctx context.Context, u *domain.User, session doma
 		return err
 	}
 	_, err := b.send(ctx, u.TelegramID,
-		fmt.Sprintf("✅ تسک «%s» ثبت شد.\nهر زمان انجامش دادی از برنامه‌ی امروز تیکش بزن.", task.Title),
-		ui.TodayInlineKeyboard())
+		ui.TaskSaved(task.Title, b.lang(u)),
+		ui.TodayInlineKeyboard(b.lang(u)))
 	return err
 }
 
@@ -212,7 +211,7 @@ func (b *Bot) handleDescriptionInput(ctx context.Context, u *domain.User, sessio
 		return err
 	}
 	if data.Back != nil {
-		return b.renderTaskCard(ctx, data.Back.ChatID, data.Back.MessageID, id, data.Back.origin())
+		return b.renderTaskCard(ctx, data.Back.ChatID, data.Back.MessageID, id, data.Back.origin(), b.lang(u))
 	}
 	return nil
 }
@@ -227,15 +226,15 @@ func (b *Bot) handleSearchInput(ctx context.Context, u *domain.User, session dom
 		return err
 	}
 
-	header := fmt.Sprintf("🔍 نتایج جستجو برای «%s»:\n\n", text)
+	header := ui.SearchResultsHeader(text, b.lang(u))
 	if len(tasks) == 0 {
-		header += "چیزی پیدا نشد 🤷"
+		header += ui.SearchEmpty(b.lang(u))
 	} else {
 		for _, t := range tasks {
-			header += ui.FormatSmallInfo(&t) + "\n"
+			header += ui.FormatSmallInfo(&t, b.lang(u)) + "\n"
 		}
 	}
-	_, err = b.send(ctx, chatID, header, ui.SearchResultsKeyboard(tasks))
+	_, err = b.send(ctx, chatID, header, ui.SearchResultsKeyboard(tasks, b.lang(u)))
 	return err
 }
 
@@ -243,20 +242,20 @@ func (b *Bot) handleSearchInput(ctx context.Context, u *domain.User, session dom
 func (b *Bot) handleAssignInput(ctx context.Context, u *domain.User, text string, chatID int64) error {
 	lines := strings.Split(text, "\n")
 	if len(lines) < 2 {
-		_, err := b.send(ctx, chatID, "لطفا یوزرنیم را در خط اول و هر تسک را در یک خط جدا بفرست.", ui.CancelInlineKeyboard())
+		_, err := b.send(ctx, chatID, ui.AssignFormatError(b.lang(u)), ui.CancelInlineKeyboard(b.lang(u)))
 		return err
 	}
 	username := strings.TrimPrefix(strings.TrimSpace(lines[0]), "@")
 	target, err := b.users.GetByUsername(ctx, username)
 	if err != nil {
-		_, err := b.send(ctx, chatID, "یوزرنیم پیدا نشد. لطفا دوباره امتحان کن.", ui.CancelInlineKeyboard())
+		_, err := b.send(ctx, chatID, ui.UsernameNotFound(b.lang(u)), ui.CancelInlineKeyboard(b.lang(u)))
 		return err
 	}
 	if target.ID == u.ID {
-		_, err := b.send(ctx, chatID, "نمی‌تونی تسک رو به خودت واگذار کنی 🙂", ui.CancelInlineKeyboard())
+		_, err := b.send(ctx, chatID, ui.SelfAssignError(b.lang(u)), ui.CancelInlineKeyboard(b.lang(u)))
 		return err
 	}
-	if err := b.setTaskForOther(ctx, u.ID, target.ID, lines[1:], "normal"); err != nil {
+	if err := b.setTaskForOther(ctx, u.ID, target.ID, lines[1:], "normal", b.lang(u)); err != nil {
 		return err
 	}
 	return b.clearSession(ctx, u.ID)
@@ -267,13 +266,13 @@ func (b *Bot) handleStatusInput(ctx context.Context, u *domain.User, text string
 	username := strings.TrimPrefix(strings.TrimSpace(text), "@")
 	target, err := b.users.GetByUsername(ctx, username)
 	if err != nil {
-		_, err := b.send(ctx, chatID, "یوزرنیم پیدا نشد. لطفا دوباره امتحان کن.", ui.CancelInlineKeyboard())
+		_, err := b.send(ctx, chatID, ui.UsernameNotFound(b.lang(u)), ui.CancelInlineKeyboard(b.lang(u)))
 		return err
 	}
 	if err := b.clearSession(ctx, u.ID); err != nil {
 		return err
 	}
-	return b.renderDelegatedStatus(ctx, chatID, 0, u.ID, target.ID)
+	return b.renderDelegatedStatus(ctx, chatID, 0, u.ID, target.ID, b.lang(u))
 }
 
 // startEditSession prepares a session for editing a task with its back target.

@@ -2,7 +2,6 @@ package bot
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/AliGhanizade/planix-telegram-bot/internal/bot/ui"
 	"github.com/AliGhanizade/planix-telegram-bot/internal/domain"
@@ -12,8 +11,8 @@ import (
 )
 
 // showMenu shows the main menu in the existing message or sends a new one.
-func (b *Bot) showMenu(ctx context.Context, chatID int64, messageID int) error {
-	return b.render(ctx, chatID, messageID, ui.MenuText, ui.MenuInlineKeyboard())
+func (b *Bot) showMenu(ctx context.Context, chatID int64, messageID int, l ui.Lang) error {
+	return b.render(ctx, chatID, messageID, ui.MenuText(l), ui.MenuInlineKeyboard(l))
 }
 
 // cbNav handles nav:* callbacks (menu navigation).
@@ -28,9 +27,10 @@ func (b *Bot) cbNav(ctx context.Context, q *models.CallbackQuery) {
 	u, err := b.upsertUser(ctx, q.From)
 	if err != nil {
 		b.log.Error("upsert user failed", zap.Error(err))
-		b.answer(ctx, q, "خطا! دوباره تلاش کن")
+		b.answer(ctx, q, ui.ErrGeneric(b.lang(u)))
 		return
 	}
+	l := b.lang(u)
 
 	switch data {
 	case "nav:noop":
@@ -38,13 +38,13 @@ func (b *Bot) cbNav(ctx context.Context, q *models.CallbackQuery) {
 
 	case "nav:menu":
 		b.answer(ctx, q, "")
-		if err := b.showMenu(ctx, chatID, messageID); err != nil {
+		if err := b.showMenu(ctx, chatID, messageID, l); err != nil {
 			b.log.Error("show menu failed", zap.Error(err))
 		}
 
 	case "nav:today":
 		b.answer(ctx, q, "")
-		if err := b.renderTaskList(ctx, chatID, messageID, u.ID, ui.FilterPending, 1); err != nil {
+		if err := b.renderTaskList(ctx, chatID, messageID, u.ID, ui.FilterPending, 1, l); err != nil {
 			b.log.Error("render task list failed", zap.Error(err))
 		}
 
@@ -70,7 +70,7 @@ func (b *Bot) cbNav(ctx context.Context, q *models.CallbackQuery) {
 
 	case "nav:help":
 		b.answer(ctx, q, "")
-		if err := b.render(ctx, chatID, messageID, ui.HelpMessage, ui.MenuInlineKeyboard()); err != nil {
+		if err := b.render(ctx, chatID, messageID, ui.HelpMessage(l), ui.MenuInlineKeyboard(l)); err != nil {
 			b.log.Error("render help failed", zap.Error(err))
 		}
 
@@ -87,19 +87,20 @@ func (b *Bot) cbNav(ctx context.Context, q *models.CallbackQuery) {
 func (b *Bot) cbState(ctx context.Context, q *models.CallbackQuery) {
 	u, err := b.upsertUser(ctx, q.From)
 	if err != nil {
-		b.answer(ctx, q, "خطا! دوباره تلاش کن")
+		b.answer(ctx, q, ui.ErrGeneric(ui.Fa))
 		return
 	}
+	l := b.lang(u)
 	if err := b.clearSession(ctx, u.ID); err != nil {
 		b.log.Error("clear session failed", zap.Error(err))
 	}
-	b.answer(ctx, q, "لغو شد ❌")
+	b.answer(ctx, q, ui.CancelledToast(l))
 
 	chatID, messageID, ok := cbOrigin(q)
 	if !ok {
 		return
 	}
-	if err := b.showMenu(ctx, chatID, messageID); err != nil {
+	if err := b.showMenu(ctx, chatID, messageID, l); err != nil {
 		b.log.Error("show menu failed", zap.Error(err))
 	}
 }
@@ -115,12 +116,13 @@ func (b *Bot) cbUserPick(ctx context.Context, q *models.CallbackQuery) {
 
 	u, err := b.upsertUser(ctx, q.From)
 	if err != nil {
-		b.answer(ctx, q, "خطا! دوباره تلاش کن")
+		b.answer(ctx, q, ui.ErrGeneric(b.lang(u)))
 		return
 	}
+	l := b.lang(u)
 	target, err := b.users.GetByUsername(ctx, username)
 	if err != nil {
-		b.answerAlert(ctx, q, "یوزرنیم پیدا نشد ❌")
+		b.answerAlert(ctx, q, ui.UsernameNotFoundToast(l))
 		return
 	}
 	_ = b.clearSession(ctx, u.ID)
@@ -130,7 +132,7 @@ func (b *Bot) cbUserPick(ctx context.Context, q *models.CallbackQuery) {
 	if !ok {
 		chatID = u.TelegramID
 	}
-	if err := b.renderDelegatedStatus(ctx, chatID, messageID, u.ID, target.ID); err != nil {
+	if err := b.renderDelegatedStatus(ctx, chatID, messageID, u.ID, target.ID, l); err != nil {
 		b.log.Error("render delegated status failed", zap.Error(err))
 	}
 }
@@ -139,9 +141,10 @@ func (b *Bot) cbUserPick(ctx context.Context, q *models.CallbackQuery) {
 func (b *Bot) cbSettings(ctx context.Context, q *models.CallbackQuery) {
 	u, err := b.upsertUser(ctx, q.From)
 	if err != nil {
-		b.answer(ctx, q, "خطا! دوباره تلاش کن")
+		b.answer(ctx, q, ui.ErrGeneric(ui.Fa))
 		return
 	}
+	l := b.lang(u)
 	chatID, messageID, ok := cbOrigin(q)
 	if !ok {
 		chatID = u.TelegramID
@@ -152,6 +155,17 @@ func (b *Bot) cbSettings(ctx context.Context, q *models.CallbackQuery) {
 	case "settings:profile":
 		b.answer(ctx, q, "")
 		b.showProfileEdit(ctx, u, chatID, messageID)
+
+	case "settings:lang":
+		newLang := string(l.Toggle())
+		if err := b.profiles.SetLanguage(ctx, u.ID, newLang); err != nil {
+			b.log.Error("set language failed", zap.Error(err))
+			b.answer(ctx, q, ui.ErrGeneric(l))
+			return
+		}
+		u.Lang = newLang
+		b.answer(ctx, q, "")
+		b.showSettings(ctx, u, chatID, messageID)
 
 	case "settings:web":
 		b.answer(ctx, q, "")
@@ -174,9 +188,9 @@ func (b *Bot) cbSettings(ctx context.Context, q *models.CallbackQuery) {
 		}
 		u.DailyReport = newValue
 		if newValue {
-			b.answer(ctx, q, "گزارش روزانه روشن شد ✅")
+			b.answer(ctx, q, ui.DailyReportLabel(true, l))
 		} else {
-			b.answer(ctx, q, "گزارش روزانه خاموش شد ❌")
+			b.answer(ctx, q, ui.DailyReportLabel(false, l))
 		}
 		b.showSettings(ctx, u, chatID, messageID)
 	}
@@ -184,9 +198,9 @@ func (b *Bot) cbSettings(ctx context.Context, q *models.CallbackQuery) {
 
 // showSettings renders the settings screen.
 func (b *Bot) showSettings(ctx context.Context, u *domain.User, chatID int64, messageID int) {
-	text := "⚙️ تنظیمات\n\nوضعیت فعلی:" +
-		fmt.Sprintf("\nگزارش روزانه: %s", ui.DailyReportLabel(u.DailyReport))
-	if err := b.render(ctx, chatID, messageID, text, ui.SettingsInlineKeyboard(u.DailyReport)); err != nil {
+	l := b.lang(u)
+	text := ui.SettingsText(ui.DailyReportLabel(u.DailyReport, l), l)
+	if err := b.render(ctx, chatID, messageID, text, ui.SettingsInlineKeyboard(u.DailyReport, l)); err != nil {
 		b.log.Error("render settings failed", zap.Error(err))
 	}
 }
@@ -196,7 +210,7 @@ func (b *Bot) startNewTask(ctx context.Context, u *domain.User, chatID int64, me
 	if err := b.setSession(ctx, u.ID, stateWaitingTaskTitle, sessionData{}); err != nil {
 		b.log.Error("set session failed", zap.Error(err))
 	}
-	if err := b.render(ctx, chatID, messageID, ui.NewTaskPrompt, ui.CancelInlineKeyboard()); err != nil {
+	if err := b.render(ctx, chatID, messageID, ui.NewTaskPrompt(b.lang(u)), ui.CancelInlineKeyboard(b.lang(u))); err != nil {
 		b.log.Error("render new task prompt failed", zap.Error(err))
 	}
 }
@@ -206,7 +220,7 @@ func (b *Bot) startSearch(ctx context.Context, u *domain.User, chatID int64, mes
 	if err := b.setSession(ctx, u.ID, stateWaitingSearch, sessionData{}); err != nil {
 		b.log.Error("set session failed", zap.Error(err))
 	}
-	if err := b.render(ctx, chatID, messageID, ui.SearchPrompt, ui.CancelInlineKeyboard()); err != nil {
+	if err := b.render(ctx, chatID, messageID, ui.SearchPrompt(b.lang(u)), ui.CancelInlineKeyboard(b.lang(u))); err != nil {
 		b.log.Error("render search prompt failed", zap.Error(err))
 	}
 }
@@ -216,7 +230,7 @@ func (b *Bot) startAssign(ctx context.Context, u *domain.User, chatID int64, mes
 	if err := b.setSession(ctx, u.ID, stateWaitingTaskForOther, sessionData{}); err != nil {
 		b.log.Error("set session failed", zap.Error(err))
 	}
-	if err := b.render(ctx, chatID, messageID, ui.AssignPrompt, ui.CancelInlineKeyboard()); err != nil {
+	if err := b.render(ctx, chatID, messageID, ui.AssignPrompt(b.lang(u)), ui.CancelInlineKeyboard(b.lang(u))); err != nil {
 		b.log.Error("render assign prompt failed", zap.Error(err))
 	}
 }
@@ -230,7 +244,7 @@ func (b *Bot) sendStatusPick(ctx context.Context, u *domain.User, chatID int64, 
 	if err != nil {
 		b.log.Error("list assigned users failed", zap.Error(err))
 	}
-	if err := b.render(ctx, chatID, messageID, ui.StatusPickPrompt, ui.SuggestFriendInlineKeyboard(users)); err != nil {
+	if err := b.render(ctx, chatID, messageID, ui.StatusPickPrompt(b.lang(u)), ui.SuggestFriendInlineKeyboard(users, b.lang(u))); err != nil {
 		b.log.Error("render status pick failed", zap.Error(err))
 	}
 }
@@ -242,30 +256,24 @@ func (b *Bot) sendProfile(ctx context.Context, u *domain.User, chatID int64, mes
 		b.log.Error("task stats failed", zap.Error(err))
 	}
 
+	l := b.lang(u)
 	name := (u.FirstName + " " + u.LastName)
 	if name == " " {
-		name = "کاربر پلنیکس"
+		name = ui.ProfileDefaultName(l)
 	}
-	username := "ندارد"
+	username := ui.NoUsername(l)
 	if u.Username != "" {
 		username = "@" + u.Username
 	}
 
-	text := "👤 پروفایل\n\n" +
-		fmt.Sprintf("🪪 %s\n", name) +
-		fmt.Sprintf("🔗 یوزرنیم: %s\n", username) +
-		fmt.Sprintf("⏳ تسک‌های باز: %d\n", st.Pending) +
-		fmt.Sprintf("✅ انجام‌شده: %d\n", st.Completed) +
-		fmt.Sprintf("❌ لغو‌شده: %d\n", st.Cancelled) +
-		fmt.Sprintf("📈 پیشرفت: %.0f%%", st.CompletionRate())
-
-	if err := b.render(ctx, chatID, messageID, text, ui.MenuInlineKeyboard()); err != nil {
+	text := ui.ProfileText(name, username, st.Pending, st.Completed, st.Cancelled, st.CompletionRate(), l)
+	if err := b.render(ctx, chatID, messageID, text, ui.MenuInlineKeyboard(l)); err != nil {
 		b.log.Error("render profile failed", zap.Error(err))
 	}
 }
 
 // renderDelegatedStatus shows delegated task status for a target user in one message.
-func (b *Bot) renderDelegatedStatus(ctx context.Context, chatID int64, messageID int, ownerID, targetID uuid.UUID) error {
+func (b *Bot) renderDelegatedStatus(ctx context.Context, chatID int64, messageID int, ownerID, targetID uuid.UUID, l ui.Lang) error {
 	tasks, err := b.tasks.ListByOwnerAndAssignee(ctx, ownerID, targetID)
 	if err != nil {
 		return err
@@ -276,26 +284,26 @@ func (b *Bot) renderDelegatedStatus(ctx context.Context, chatID int64, messageID
 	}
 
 	if len(tasks) == 0 {
-		text := fmt.Sprintf("📭 تا کنون به %s تسکی واگذار نکرده‌ای.", target.FirstName)
-		return b.render(ctx, chatID, messageID, text, ui.BackKeyboard())
+		text := ui.DelegatedEmpty(target.FirstName, l)
+		return b.render(ctx, chatID, messageID, text, ui.BackKeyboard(l))
 	}
 
 	done := ""
 	pending := ""
 	for _, t := range tasks {
 		if t.Status == "completed" {
-			done += ui.FormatSmallInfo(&t) + "\n"
+			done += ui.FormatSmallInfo(&t, l) + "\n"
 		} else {
-			pending += ui.FormatSmallInfo(&t) + "\n"
+			pending += ui.FormatSmallInfo(&t, l) + "\n"
 		}
 	}
 
-	text := fmt.Sprintf("📊 وضعیت تسک‌های واگذارشده به %s:\n\n", target.FirstName)
+	text := ui.DelegatedHeader(target.FirstName, l)
 	if pending != "" {
-		text += "⏳ باز:\n" + pending + "\n"
+		text += ui.DelegatedOpenTitle(l) + pending + "\n"
 	}
 	if done != "" {
-		text += "✅ انجام‌شده:\n" + done
+		text += ui.DelegatedDoneTitle(l) + done
 	}
-	return b.render(ctx, chatID, messageID, text, ui.BackKeyboard())
+	return b.render(ctx, chatID, messageID, text, ui.BackKeyboard(l))
 }

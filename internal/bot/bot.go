@@ -4,7 +4,6 @@ package bot
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -65,16 +64,25 @@ func (b *Bot) Run(ctx context.Context) {
 		b.log.Info("bot started", zap.String("username", me.Username))
 	}
 
-	if _, err := b.api.SetMyCommands(ctx, &tgbot.SetMyCommandsParams{
-		Commands: []models.BotCommand{
-			{Command: "start", Description: "شروع کار با پلنیکس"},
-			{Command: "today", Description: "برنامه امروز"},
-			{Command: "new", Description: "ثبت تسک جدید"},
-			{Command: "search", Description: "جستجو در تسک‌ها"},
-			{Command: "help", Description: "راهنما"},
-		},
-	}); err != nil {
+	faCommands := []models.BotCommand{
+		{Command: "start", Description: "شروع کار با پلنیکس"},
+		{Command: "today", Description: "برنامه امروز"},
+		{Command: "new", Description: "ثبت تسک جدید"},
+		{Command: "search", Description: "جستجو در تسک‌ها"},
+		{Command: "help", Description: "راهنما"},
+	}
+	enCommands := []models.BotCommand{
+		{Command: "start", Description: "Get started with Planix"},
+		{Command: "today", Description: "Today's plan"},
+		{Command: "new", Description: "Create a new task"},
+		{Command: "search", Description: "Search your tasks"},
+		{Command: "help", Description: "Help"},
+	}
+	if _, err := b.api.SetMyCommands(ctx, &tgbot.SetMyCommandsParams{Commands: faCommands}); err != nil {
 		b.log.Warn("set my commands failed", zap.Error(err))
+	}
+	if _, err := b.api.SetMyCommands(ctx, &tgbot.SetMyCommandsParams{Commands: enCommands, LanguageCode: "en"}); err != nil {
+		b.log.Warn("set english commands failed", zap.Error(err))
 	}
 
 	b.api.Start(ctx)
@@ -114,9 +122,12 @@ func (b *Bot) send(ctx context.Context, chatID int64, text string, markup models
 }
 
 // sendWithKeyboard sends a message with the main colored keyboard.
-func (b *Bot) sendWithKeyboard(ctx context.Context, chatID int64, text string) (*models.Message, error) {
-	return b.send(ctx, chatID, text, ui.MainKeyboard())
+func (b *Bot) sendWithKeyboard(ctx context.Context, chatID int64, text string, l ui.Lang) (*models.Message, error) {
+	return b.send(ctx, chatID, text, ui.MainKeyboard(l))
 }
+
+// lang returns the display language of a user.
+func (b *Bot) lang(u *domain.User) ui.Lang { return ui.Normalize(u.Lang) }
 
 // edit updates an existing message in place to keep the ui in sync.
 func (b *Bot) edit(ctx context.Context, chatID int64, messageID int, text string, markup models.ReplyMarkup) error {
@@ -197,32 +208,33 @@ func (b *Bot) onText(ctx context.Context, m *models.Message) {
 	}
 
 	text := strings.TrimSpace(m.Text)
+	l := b.lang(u)
 	switch text {
 	case "/start":
-		b.sendWithKeyboard(ctx, m.Chat.ID, ui.WelcomeMessage(b.me))
-	case "/today", "📋 برنامه امروز", "📅 برنامه‌های من":
-		if err := b.renderTaskList(ctx, m.Chat.ID, 0, u.ID, ui.FilterPending, 1); err != nil {
+		b.sendWithKeyboard(ctx, m.Chat.ID, ui.WelcomeMessage(b.me, l), l)
+	case "/today", "📋 برنامه امروز", "📅 برنامه‌های من", "📋 Today":
+		if err := b.renderTaskList(ctx, m.Chat.ID, 0, u.ID, ui.FilterPending, 1, l); err != nil {
 			b.log.Error("render task list failed", zap.Error(err))
 		}
-	case "/new", "➕ تسک جدید":
+	case "/new", "➕ تسک جدید", "➕ New task":
 		b.startNewTask(ctx, u, m.Chat.ID, 0)
-	case "/search", "🔍 جستجو":
+	case "/search", "🔍 جستجو", "🔍 Search":
 		b.startSearch(ctx, u, m.Chat.ID, 0)
-	case "/help", "ℹ️ راهنما":
-		b.sendWithKeyboard(ctx, m.Chat.ID, ui.HelpMessage)
-	case "/profile", "👤 پروفایل":
+	case "/help", "ℹ️ راهنما", "ℹ️ Help":
+		b.sendWithKeyboard(ctx, m.Chat.ID, ui.HelpMessage(l), l)
+	case "/profile", "👤 پروفایل", "👤 Profile":
 		b.sendProfile(ctx, u, m.Chat.ID, 0)
-	case "👥 واگذاری تسک", "👥 اعمال وظایف دیگران":
+	case "👥 واگذاری تسک", "👥 اعمال وظایف دیگران", "👥 Delegate":
 		b.startAssign(ctx, u, m.Chat.ID, 0)
-	case "📊 وضعیت وظایف دیگران", "✅ وضعیت وظایف دیگران":
+	case "📊 وضعیت وظایف دیگران", "✅ وضعیت وظایف دیگران", "📊 Delegated status":
 		b.sendStatusPick(ctx, u, m.Chat.ID, 0)
-	case "⚙️ تنظیمات":
+	case "⚙️ تنظیمات", "⚙️ Settings":
 		b.showSettings(ctx, u, m.Chat.ID, 0)
-	case "🛟 پشتیبانی", "پشتیبانی":
-		b.sendWithKeyboard(ctx, m.Chat.ID, fmt.Sprintf("🛟 برای ارتباط با پشتیبانی به @%s پیام بده.", b.owner))
-	case "❌ بازگشت", " ❌ بازگشت":
+	case "🛟 پشتیبانی", "پشتیبانی", "🛟 Support":
+		b.sendWithKeyboard(ctx, m.Chat.ID, ui.SupportMessage(b.owner, l), l)
+	case "❌ بازگشت", " ❌ بازگشت", "❌ Back":
 		_ = b.clearSession(ctx, u.ID)
-		b.sendWithKeyboard(ctx, m.Chat.ID, ui.MenuText)
+		b.sendWithKeyboard(ctx, m.Chat.ID, ui.MenuText(l), l)
 	default:
 		if err := b.checkState(ctx, u, text, m.Chat.ID); err != nil {
 			b.log.Error("handle state failed", zap.Error(err))

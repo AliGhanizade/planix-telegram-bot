@@ -29,6 +29,7 @@ type User struct {
 	Timezone     string     `gorm:"default:Asia/Tehran" json:"timezone"`
 	IsActive     bool       `gorm:"default:true" json:"is_active"`
 	DailyReport  bool       `gorm:"default:true" json:"daily_report"`
+	Lang         string     `gorm:"default:fa" json:"lang"`
 	LastSeenAt   *time.Time `json:"last_seen_at"`
 }
 

@@ -98,6 +98,18 @@ func (s *UserService) UpdateProfile(ctx context.Context, userID uuid.UUID, first
 	return s.users.GetByID(ctx, userID)
 }
 
+// SetLanguage stores the bot display language (fa or en).
+func (s *UserService) SetLanguage(ctx context.Context, userID uuid.UUID, lang string) error {
+	if lang != "fa" && lang != "en" {
+		return fmt.Errorf("unsupported language: %s", lang)
+	}
+	if err := s.db.WithContext(ctx).Model(&domain.User{}).Where("id = ?", userID).Update("lang", lang).Error; err != nil {
+		return err
+	}
+	s.audit(ctx, userID, "language_changed", []string{lang})
+	return nil
+}
+
 // SetDailyReport turns the daily report on or off.
 func (s *UserService) SetDailyReport(ctx context.Context, userID uuid.UUID, enabled bool) error {
 	if err := s.users.SetDailyReport(ctx, userID, enabled); err != nil {

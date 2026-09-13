@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AliGhanizade/planix-telegram-bot/internal/bot/ui"
 	"github.com/AliGhanizade/planix-telegram-bot/internal/domain"
 	"github.com/AliGhanizade/planix-telegram-bot/internal/service"
 	"github.com/gin-gonic/gin"
@@ -63,8 +64,8 @@ func (h *Handlers) requestLogin(c *gin.Context) {
 		return
 	}
 
-	// deliver the code to the user through the bot.
-	if err := h.telegram.SendLoginCode(c.Request.Context(), user.TelegramID, code.Code, 10); err != nil {
+	// deliver the code to the user through the bot, in the user language.
+	if err := h.telegram.SendLoginCode(c.Request.Context(), user.TelegramID, code.Code, 10, ui.Normalize(user.Lang)); err != nil {
 		requestLoggerOf(c).Error("send login code failed", zapErr(err))
 		fail(c, http.StatusInternalServerError, "ارسال کد توسط بات ناموفق بود")
 		return

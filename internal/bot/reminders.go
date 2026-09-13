@@ -2,7 +2,6 @@ package bot
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/AliGhanizade/planix-telegram-bot/internal/bot/ui"
@@ -20,23 +19,24 @@ func (b *Bot) SendDailyReports(ctx context.Context) {
 
 	sent := 0
 	for _, u := range users {
+		l := b.lang(&u)
 		tasks, err := b.tasks.Today(ctx, u.ID)
 		if err != nil {
 			b.log.Error("list today tasks failed", zap.Error(err), zap.String("user_id", u.ID.String()))
 			continue
 		}
 
-		text := "🌅 گزارش روزانه پلنیکس\n\n"
+		text := ui.DailyReportHeader(l)
 		if len(tasks) == 0 {
-			text += "امروز تسک بازی نداری؛ روز خوبی داشته باشی ✨"
+			text += ui.DailyReportEmpty(l)
 		} else {
-			text += fmt.Sprintf("شما %d تسک باز دارید:\n\n", len(tasks))
+			text += ui.DailyReportCount(len(tasks), l)
 			for _, t := range tasks {
-				text += ui.FormatSmallInfo(&t) + "\n"
+				text += ui.FormatSmallInfo(&t, l) + "\n"
 			}
 		}
 
-		if _, err := b.sendWithKeyboard(ctx, u.TelegramID, text); err != nil {
+		if _, err := b.sendWithKeyboard(ctx, u.TelegramID, text, l); err != nil {
 			b.log.Warn("send daily report failed", zap.Error(err), zap.Int64("telegram_id", u.TelegramID))
 			continue
 		}
@@ -62,14 +62,16 @@ func (b *Bot) SendDueReminders(ctx context.Context, lead time.Duration) {
 			b.log.Warn("fetch assignee failed", zap.Error(err))
 			continue
 		}
+		l := b.lang(assignee)
 
 		remaining := time.Until(*t.DueAt)
-		text := fmt.Sprintf("⏳ یادآوری پلنیکس\n\nتسک «%s» تا %s دیگر موعدش تمام می‌شود.\n📅 موعد: %s",
+		text := ui.ReminderText(
 			ui.Truncate(t.Title, 60),
-			humanDuration(remaining),
+			ui.HumanDuration(remaining, l),
 			t.DueAt.Format("01-02 15:04"),
+			l,
 		)
-		if _, err := b.sendWithKeyboard(ctx, assignee.TelegramID, text); err != nil {
+		if _, err := b.sendWithKeyboard(ctx, assignee.TelegramID, text, l); err != nil {
 			b.log.Warn("send reminder failed", zap.Error(err))
 			continue
 		}
@@ -81,20 +83,4 @@ func (b *Bot) SendDueReminders(ctx context.Context, lead time.Duration) {
 	if len(tasks) > 0 {
 		b.log.Info("due reminders sent", zap.Int("count", len(tasks)))
 	}
-}
-
-// humanDuration renders a duration in words.
-func humanDuration(d time.Duration) string {
-	if d <= 0 {
-		return "همین حالا"
-	}
-	minutes := int(d.Minutes())
-	if minutes < 60 {
-		return fmt.Sprintf("%d دقیقه", minutes)
-	}
-	hours := int(d.Hours())
-	if hours < 24 {
-		return fmt.Sprintf("%d ساعت", hours)
-	}
-	return fmt.Sprintf("%d روز", int(d.Hours()/24))
 }

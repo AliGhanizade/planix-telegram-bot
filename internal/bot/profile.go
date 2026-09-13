@@ -2,7 +2,6 @@ package bot
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/AliGhanizade/planix-telegram-bot/internal/bot/ui"
 	"github.com/AliGhanizade/planix-telegram-bot/internal/domain"
@@ -24,16 +23,14 @@ func stateFieldEdit(field string) (string, bool) {
 
 // showProfileEdit renders the profile edit menu with current values.
 func (b *Bot) showProfileEdit(ctx context.Context, u *domain.User, chatID int64, messageID int) {
-	text := fmt.Sprintf("✏️ ویرایش اطلاعات\n\n"+
-		"🪪 نام: %s\n"+
-		"🏷 نام خانوادگی: %s\n"+
-		"🌍 تایم‌زون: %s\n\n"+
-		"روی فیلد موردنظر بزن و مقدار جدید را بفرست.",
-		displayName(u.FirstName, "ندارد"),
-		displayName(u.LastName, "ندارد"),
+	l := b.lang(u)
+	text := ui.ProfileEditText(
+		displayName(u.FirstName, ui.NoUsername(l)),
+		displayName(u.LastName, ui.NoUsername(l)),
 		displayName(u.Timezone, "Asia/Tehran"),
+		l,
 	)
-	if err := b.render(ctx, chatID, messageID, text, ui.ProfileEditInlineKeyboard()); err != nil {
+	if err := b.render(ctx, chatID, messageID, text, ui.ProfileEditInlineKeyboard(l)); err != nil {
 		b.log.Error("render profile edit failed", zap.Error(err))
 	}
 }
@@ -50,10 +47,11 @@ func (b *Bot) startProfileFieldEdit(ctx context.Context, u *domain.User, data st
 		return
 	}
 
+	l := b.lang(u)
 	prompt := map[string]string{
-		stateWaitingEditFirstName: "🪪 نام جدیدت را بفرست:",
-		stateWaitingEditLastName:  "🏷 نام خانوادگی جدید را بفرست (برای حذف، «-» بفرست):",
-		stateWaitingEditTimezone:  "🌍 تایم‌زون را بفرست؛ مثال: Asia/Tehran",
+		stateWaitingEditFirstName: ui.EditFirstNamePrompt(l),
+		stateWaitingEditLastName:  ui.EditLastNamePrompt(l),
+		stateWaitingEditTimezone:  ui.EditTimezonePrompt(l),
 	}[state]
 
 	if err := b.setSession(ctx, u.ID, state, sessionData{
@@ -61,7 +59,7 @@ func (b *Bot) startProfileFieldEdit(ctx context.Context, u *domain.User, data st
 	}); err != nil {
 		b.log.Error("set session failed", zap.Error(err))
 	}
-	if err := b.render(ctx, chatID, messageID, prompt, ui.CancelInlineKeyboard()); err != nil {
+	if err := b.render(ctx, chatID, messageID, prompt, ui.CancelInlineKeyboard(l)); err != nil {
 		b.log.Error("render profile field prompt failed", zap.Error(err))
 	}
 }

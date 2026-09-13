@@ -2,7 +2,6 @@ package bot
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -50,7 +49,7 @@ func (b *Bot) cbTask(ctx context.Context, q *models.CallbackQuery) {
 
 	u, err := b.upsertUser(ctx, q.From)
 	if err != nil {
-		b.answer(ctx, q, "خطا! دوباره تلاش کن")
+		b.answer(ctx, q, ui.ErrGeneric(b.lang(u)))
 		return
 	}
 	chatID, messageID, ok := cbOrigin(q)
@@ -59,6 +58,8 @@ func (b *Bot) cbTask(ctx context.Context, q *models.CallbackQuery) {
 		messageID = 0
 	}
 
+	l := b.lang(u)
+
 	switch parts[1] {
 	case "due":
 		// task:due:<id>:<preset>[:origin]
@@ -66,7 +67,7 @@ func (b *Bot) cbTask(ctx context.Context, q *models.CallbackQuery) {
 			b.answer(ctx, q, "")
 			return
 		}
-		b.cbTaskDue(ctx, q, parts[2], parts[3], chatID, messageID)
+		b.cbTaskDue(ctx, q, parts[2], parts[3], chatID, messageID, l)
 
 	case "prio":
 		// task:prio:<id>:<level>[:origin]
@@ -74,7 +75,7 @@ func (b *Bot) cbTask(ctx context.Context, q *models.CallbackQuery) {
 			b.answer(ctx, q, "")
 			return
 		}
-		b.cbTaskPriority(ctx, q, parts[2], parts[3], chatID, messageID)
+		b.cbTaskPriority(ctx, q, parts[2], parts[3], chatID, messageID, l)
 
 	case "edit":
 		// task:edit:<what>:<id>[:origin]
@@ -82,7 +83,7 @@ func (b *Bot) cbTask(ctx context.Context, q *models.CallbackQuery) {
 			b.answer(ctx, q, "")
 			return
 		}
-		b.cbTaskEdit(ctx, q, u, parts[2], parts[3], chatID, messageID)
+		b.cbTaskEdit(ctx, q, u, parts[2], parts[3], chatID, messageID, l)
 
 	case "delete":
 		if parts[2] == "yes" {
@@ -91,23 +92,23 @@ func (b *Bot) cbTask(ctx context.Context, q *models.CallbackQuery) {
 				b.answer(ctx, q, "")
 				return
 			}
-			b.cbTaskDeleteYes(ctx, q, u, parts[3], chatID, messageID)
+			b.cbTaskDeleteYes(ctx, q, u, parts[3], chatID, messageID, l)
 			return
 		}
 		// task:delete:<id>[:origin]
-		b.cbTaskDeleteAsk(ctx, q, parts[2], chatID, messageID)
+		b.cbTaskDeleteAsk(ctx, q, parts[2], chatID, messageID, l)
 
 	default:
 		// simple actions: task:<action>:<id>[:origin]
-		b.cbTaskAction(ctx, q, u, parts[1], parts[2], chatID, messageID)
+		b.cbTaskAction(ctx, q, u, parts[1], parts[2], chatID, messageID, l)
 	}
 }
 
 // cbTaskAction handles simple task actions: info, refresh, done and reopen.
-func (b *Bot) cbTaskAction(ctx context.Context, q *models.CallbackQuery, u *domain.User, action, rawID string, chatID int64, messageID int) {
+func (b *Bot) cbTaskAction(ctx context.Context, q *models.CallbackQuery, u *domain.User, action, rawID string, chatID int64, messageID int, l ui.Lang) {
 	id, err := uuid.Parse(rawID)
 	if err != nil {
-		b.answerAlert(ctx, q, "شناسه‌ی تسک نامعتبر است")
+		b.answerAlert(ctx, q, ui.InvalidTaskIDToast(l))
 		return
 	}
 	origin, err := ui.ParseTaskOrigin(ui.SplitCallback(q.Data), 3)
@@ -119,36 +120,36 @@ func (b *Bot) cbTaskAction(ctx context.Context, q *models.CallbackQuery, u *doma
 	switch action {
 	case "info":
 		b.answer(ctx, q, "")
-		if err := b.renderTaskCard(ctx, chatID, messageID, id, origin); err != nil {
+		if err := b.renderTaskCard(ctx, chatID, messageID, id, origin, l); err != nil {
 			b.log.Error("render task card failed", zap.Error(err))
-			b.answerAlert(ctx, q, "تسک پیدا نشد")
+			b.answerAlert(ctx, q, ui.TaskNotFoundToast(l))
 		}
 
 	case "refresh":
-		b.answer(ctx, q, "بروزرسانی شد 🔄")
-		b.refreshTaskView(ctx, u.ID, chatID, messageID, id, origin)
+		b.answer(ctx, q, ui.RefreshedToast(l))
+		b.refreshTaskView(ctx, u.ID, chatID, messageID, id, origin, l)
 
 	case "done":
 		task, err := b.tasks.Complete(ctx, id)
 		if err != nil {
 			b.log.Error("complete task failed", zap.Error(err))
-			b.answerAlert(ctx, q, "خطا در انجام تسک")
+			b.answerAlert(ctx, q, ui.ErrGeneric(l))
 			return
 		}
-		b.answer(ctx, q, "تسک انجام شد ✅")
+		b.answer(ctx, q, ui.TaskDoneToast(l))
 		b.notifyOwner(ctx, task, q.From.FirstName)
-		b.refreshTaskView(ctx, u.ID, chatID, messageID, id, origin)
+		b.refreshTaskView(ctx, u.ID, chatID, messageID, id, origin, l)
 
 	case "reopen":
 		task, err := b.tasks.Reopen(ctx, id)
 		if err != nil {
 			b.log.Error("reopen task failed", zap.Error(err))
-			b.answerAlert(ctx, q, "خطا در بازگشایی تسک")
+			b.answerAlert(ctx, q, ui.ErrGeneric(l))
 			return
 		}
-		b.answer(ctx, q, "تسک دوباره باز شد 🔄")
+		b.answer(ctx, q, ui.TaskReopenedToast(l))
 		b.notifyOwner(ctx, task, q.From.FirstName)
-		b.refreshTaskView(ctx, u.ID, chatID, messageID, id, origin)
+		b.refreshTaskView(ctx, u.ID, chatID, messageID, id, origin, l)
 
 	default:
 		b.answer(ctx, q, "")
@@ -156,23 +157,23 @@ func (b *Bot) cbTaskAction(ctx context.Context, q *models.CallbackQuery, u *doma
 }
 
 // refreshTaskView re-renders the list or the card depending on origin to keep the ui in sync.
-func (b *Bot) refreshTaskView(ctx context.Context, userID uuid.UUID, chatID int64, messageID int, id uuid.UUID, origin ui.TaskOrigin) {
+func (b *Bot) refreshTaskView(ctx context.Context, userID uuid.UUID, chatID int64, messageID int, id uuid.UUID, origin ui.TaskOrigin, l ui.Lang) {
 	if origin.List {
-		if err := b.renderTaskList(ctx, chatID, messageID, userID, ui.ListFilter(origin.Filter), origin.Page); err != nil {
+		if err := b.renderTaskList(ctx, chatID, messageID, userID, ui.ListFilter(origin.Filter), origin.Page, l); err != nil {
 			b.log.Error("render task list failed", zap.Error(err))
 		}
 		return
 	}
-	if err := b.renderTaskCard(ctx, chatID, messageID, id, origin); err != nil {
+	if err := b.renderTaskCard(ctx, chatID, messageID, id, origin, l); err != nil {
 		b.log.Error("render task card failed", zap.Error(err))
 	}
 }
 
 // cbTaskEdit starts edit flows (title, description) and opens pickers (due, priority).
-func (b *Bot) cbTaskEdit(ctx context.Context, q *models.CallbackQuery, u *domain.User, what, rawID string, chatID int64, messageID int) {
+func (b *Bot) cbTaskEdit(ctx context.Context, q *models.CallbackQuery, u *domain.User, what, rawID string, chatID int64, messageID int, l ui.Lang) {
 	id, err := uuid.Parse(rawID)
 	if err != nil {
-		b.answerAlert(ctx, q, "شناسه‌ی تسک نامعتبر است")
+		b.answerAlert(ctx, q, ui.InvalidTaskIDToast(l))
 		return
 	}
 	origin, err := ui.ParseTaskOrigin(ui.SplitCallback(q.Data), 4)
@@ -185,46 +186,46 @@ func (b *Bot) cbTaskEdit(ctx context.Context, q *models.CallbackQuery, u *domain
 	case "title":
 		if err := b.startEditSession(ctx, u.ID, stateWaitingTaskTitle, id, cardBackRef(chatID, messageID, origin)); err != nil {
 			b.log.Error("start edit session failed", zap.Error(err))
-			b.answer(ctx, q, "خطا! دوباره تلاش کن")
+			b.answer(ctx, q, ui.ErrGeneric(l))
 			return
 		}
-		b.answer(ctx, q, "عنوان جدید را ارسال کنید ✏️")
-		if err := b.edit(ctx, chatID, messageID, "📝 لطفاً عنوان جدید تسک را در پیام بعدی بفرست.", ui.CancelInlineKeyboard()); err != nil {
+		b.answer(ctx, q, ui.EditTitleToast(l))
+		if err := b.edit(ctx, chatID, messageID, ui.EditTitlePrompt(l), ui.CancelInlineKeyboard(l)); err != nil {
 			b.log.Error("render edit title prompt failed", zap.Error(err))
 		}
 
 	case "desc":
 		if err := b.startEditSession(ctx, u.ID, stateWaitingTaskDescription, id, cardBackRef(chatID, messageID, origin)); err != nil {
 			b.log.Error("start edit session failed", zap.Error(err))
-			b.answer(ctx, q, "خطا! دوباره تلاش کن")
+			b.answer(ctx, q, ui.ErrGeneric(l))
 			return
 		}
-		b.answer(ctx, q, "توضیحات جدید را ارسال کنید ✏️")
-		if err := b.edit(ctx, chatID, messageID, "📄 لطفاً توضیحات جدید تسک را در پیام بعدی بفرست.", ui.CancelInlineKeyboard()); err != nil {
+		b.answer(ctx, q, ui.EditDescToast(l))
+		if err := b.edit(ctx, chatID, messageID, ui.EditDescPrompt(l), ui.CancelInlineKeyboard(l)); err != nil {
 			b.log.Error("render edit desc prompt failed", zap.Error(err))
 		}
 
 	case "due":
 		task, err := b.tasks.GetByID(ctx, id)
 		if err != nil {
-			b.answerAlert(ctx, q, "تسک پیدا نشد")
+			b.answerAlert(ctx, q, ui.TaskNotFoundToast(l))
 			return
 		}
 		b.answer(ctx, q, "")
-		text := fmt.Sprintf("📅 موعد تسک «%s» را انتخاب کن:", ui.Truncate(task.Title, 40))
-		if err := b.edit(ctx, chatID, messageID, text, ui.DuePickerKeyboard(task, origin)); err != nil {
+		text := ui.DuePickerText(ui.Truncate(task.Title, 40), l)
+		if err := b.edit(ctx, chatID, messageID, text, ui.DuePickerKeyboard(task, origin, l)); err != nil {
 			b.log.Error("render due picker failed", zap.Error(err))
 		}
 
 	case "priority":
 		task, err := b.tasks.GetByID(ctx, id)
 		if err != nil {
-			b.answerAlert(ctx, q, "تسک پیدا نشد")
+			b.answerAlert(ctx, q, ui.TaskNotFoundToast(l))
 			return
 		}
 		b.answer(ctx, q, "")
-		text := fmt.Sprintf("⚡ اولویت تسک «%s» را انتخاب کن:", ui.Truncate(task.Title, 40))
-		if err := b.edit(ctx, chatID, messageID, text, ui.PriorityPickerKeyboard(task, origin)); err != nil {
+		text := ui.PriorityPickerText(ui.Truncate(task.Title, 40), l)
+		if err := b.edit(ctx, chatID, messageID, text, ui.PriorityPickerKeyboard(task, origin, l)); err != nil {
 			b.log.Error("render priority picker failed", zap.Error(err))
 		}
 
@@ -234,10 +235,10 @@ func (b *Bot) cbTaskEdit(ctx context.Context, q *models.CallbackQuery, u *domain
 }
 
 // cbTaskDeleteAsk shows the two step delete confirmation.
-func (b *Bot) cbTaskDeleteAsk(ctx context.Context, q *models.CallbackQuery, rawID string, chatID int64, messageID int) {
+func (b *Bot) cbTaskDeleteAsk(ctx context.Context, q *models.CallbackQuery, rawID string, chatID int64, messageID int, l ui.Lang) {
 	id, err := uuid.Parse(rawID)
 	if err != nil {
-		b.answerAlert(ctx, q, "شناسه‌ی تسک نامعتبر است")
+		b.answerAlert(ctx, q, ui.InvalidTaskIDToast(l))
 		return
 	}
 	origin, err := ui.ParseTaskOrigin(ui.SplitCallback(q.Data), 3)
@@ -248,21 +249,21 @@ func (b *Bot) cbTaskDeleteAsk(ctx context.Context, q *models.CallbackQuery, rawI
 
 	task, err := b.tasks.GetByID(ctx, id)
 	if err != nil {
-		b.answerAlert(ctx, q, "تسک پیدا نشد")
+		b.answerAlert(ctx, q, ui.TaskNotFoundToast(l))
 		return
 	}
 	b.answer(ctx, q, "")
-	text := fmt.Sprintf("🗑 مطمئنی می‌خوای تسک «%s» را حذف کنی؟\nاین عمل قابل بازگشت نیست.", ui.Truncate(task.Title, 60))
-	if err := b.edit(ctx, chatID, messageID, text, ui.DeleteConfirmKeyboard(task, origin)); err != nil {
+	text := ui.DeleteConfirmText(ui.Truncate(task.Title, 60), l)
+	if err := b.edit(ctx, chatID, messageID, text, ui.DeleteConfirmKeyboard(task, origin, l)); err != nil {
 		b.log.Error("render delete confirm failed", zap.Error(err))
 	}
 }
 
 // cbTaskDeleteYes deletes the task after confirmation.
-func (b *Bot) cbTaskDeleteYes(ctx context.Context, q *models.CallbackQuery, u *domain.User, rawID string, chatID int64, messageID int) {
+func (b *Bot) cbTaskDeleteYes(ctx context.Context, q *models.CallbackQuery, u *domain.User, rawID string, chatID int64, messageID int, l ui.Lang) {
 	id, err := uuid.Parse(rawID)
 	if err != nil {
-		b.answerAlert(ctx, q, "شناسه‌ی تسک نامعتبر است")
+		b.answerAlert(ctx, q, ui.InvalidTaskIDToast(l))
 		return
 	}
 	origin, err := ui.ParseTaskOrigin(ui.SplitCallback(q.Data), 4)
@@ -273,27 +274,27 @@ func (b *Bot) cbTaskDeleteYes(ctx context.Context, q *models.CallbackQuery, u *d
 
 	if err := b.tasks.Delete(ctx, id); err != nil {
 		b.log.Error("delete task failed", zap.Error(err))
-		b.answerAlert(ctx, q, "خطا در حذف تسک")
+		b.answerAlert(ctx, q, ui.ErrGeneric(l))
 		return
 	}
-	b.answer(ctx, q, "حذف شد 🗑")
+	b.answer(ctx, q, ui.DeletedToast(l))
 
 	if origin.List {
-		if err := b.renderTaskList(ctx, chatID, messageID, u.ID, ui.ListFilter(origin.Filter), origin.Page); err != nil {
+		if err := b.renderTaskList(ctx, chatID, messageID, u.ID, ui.ListFilter(origin.Filter), origin.Page, l); err != nil {
 			b.log.Error("render task list failed", zap.Error(err))
 		}
 		return
 	}
-	if err := b.edit(ctx, chatID, messageID, "🗑 تسک حذف شد.", ui.BackKeyboard()); err != nil {
+	if err := b.edit(ctx, chatID, messageID, ui.DeletedMessage(l), ui.BackKeyboard(l)); err != nil {
 		b.log.Error("render deleted notice failed", zap.Error(err))
 	}
 }
 
 // cbTaskDue saves the due date picked from the quick picker.
-func (b *Bot) cbTaskDue(ctx context.Context, q *models.CallbackQuery, rawID, preset string, chatID int64, messageID int) {
+func (b *Bot) cbTaskDue(ctx context.Context, q *models.CallbackQuery, rawID, preset string, chatID int64, messageID int, l ui.Lang) {
 	id, err := uuid.Parse(rawID)
 	if err != nil {
-		b.answerAlert(ctx, q, "شناسه‌ی تسک نامعتبر است")
+		b.answerAlert(ctx, q, ui.InvalidTaskIDToast(l))
 		return
 	}
 	origin, err := ui.ParseTaskOrigin(ui.SplitCallback(q.Data), 4)
@@ -305,19 +306,19 @@ func (b *Bot) cbTaskDue(ctx context.Context, q *models.CallbackQuery, rawID, pre
 	if preset == "none" {
 		if err := b.tasks.UpdateDueAt(ctx, id, nil); err != nil {
 			b.log.Error("clear due date failed", zap.Error(err))
-			b.answerAlert(ctx, q, "خطا در ثبت موعد")
+			b.answerAlert(ctx, q, ui.ErrGeneric(l))
 			return
 		}
-		b.answer(ctx, q, "موعد حذف شد 🗓")
+		b.answer(ctx, q, ui.DueClearedToast(l))
 	} else {
 		task, err := b.tasks.GetByID(ctx, id)
 		if err != nil {
-			b.answerAlert(ctx, q, "تسک پیدا نشد")
+			b.answerAlert(ctx, q, ui.TaskNotFoundToast(l))
 			return
 		}
 		assignee, err := b.users.GetByID(ctx, task.AssigneeID)
 		if err != nil {
-			b.answerAlert(ctx, q, "خطا در ثبت موعد")
+			b.answerAlert(ctx, q, ui.ErrGeneric(l))
 			return
 		}
 		due, ok := dueFromPreset(preset, time.Now(), userLocation(assignee.Timezone))
@@ -327,22 +328,22 @@ func (b *Bot) cbTaskDue(ctx context.Context, q *models.CallbackQuery, rawID, pre
 		}
 		if err := b.tasks.UpdateDueAt(ctx, id, &due); err != nil {
 			b.log.Error("update due date failed", zap.Error(err))
-			b.answerAlert(ctx, q, "خطا در ثبت موعد")
+			b.answerAlert(ctx, q, ui.ErrGeneric(l))
 			return
 		}
-		b.answer(ctx, q, "موعد ثبت شد 📅 "+due.Format("01-02 15:04"))
+		b.answer(ctx, q, ui.DueSetToast(due.Format("01-02 15:04"), l))
 	}
 
-	if err := b.renderTaskCard(ctx, chatID, messageID, id, origin); err != nil {
+	if err := b.renderTaskCard(ctx, chatID, messageID, id, origin, l); err != nil {
 		b.log.Error("render task card failed", zap.Error(err))
 	}
 }
 
 // cbTaskPriority saves the picked priority.
-func (b *Bot) cbTaskPriority(ctx context.Context, q *models.CallbackQuery, rawID, level string, chatID int64, messageID int) {
+func (b *Bot) cbTaskPriority(ctx context.Context, q *models.CallbackQuery, rawID, level string, chatID int64, messageID int, l ui.Lang) {
 	id, err := uuid.Parse(rawID)
 	if err != nil {
-		b.answerAlert(ctx, q, "شناسه‌ی تسک نامعتبر است")
+		b.answerAlert(ctx, q, ui.InvalidTaskIDToast(l))
 		return
 	}
 	origin, err := ui.ParseTaskOrigin(ui.SplitCallback(q.Data), 4)
@@ -353,12 +354,12 @@ func (b *Bot) cbTaskPriority(ctx context.Context, q *models.CallbackQuery, rawID
 
 	if err := b.tasks.UpdatePriority(ctx, id, level); err != nil {
 		b.log.Error("update priority failed", zap.Error(err))
-		b.answerAlert(ctx, q, "خطا در ثبت اولویت")
+		b.answerAlert(ctx, q, ui.ErrGeneric(l))
 		return
 	}
-	b.answer(ctx, q, "اولویت ثبت شد ⚡ "+ui.PriorityLabel(level))
+	b.answer(ctx, q, ui.PrioritySetToast(ui.PriorityLabel(level, l), l))
 
-	if err := b.renderTaskCard(ctx, chatID, messageID, id, origin); err != nil {
+	if err := b.renderTaskCard(ctx, chatID, messageID, id, origin, l); err != nil {
 		b.log.Error("render task card failed", zap.Error(err))
 	}
 }
