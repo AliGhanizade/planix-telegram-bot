@@ -35,7 +35,25 @@ func (h *Handlers) registerProfile(authed *gin.RouterGroup) {
 		g.GET("", h.getProfile)
 		g.PATCH("", h.updateProfile)
 	}
+	g.PUT("/daily-report", h.setDailyReport)
 	g.GET("/stats", h.getStats)
+}
+
+// setDailyReport toggles the nightly report for the user.
+func (h *Handlers) setDailyReport(c *gin.Context) {
+	user := currentUser(c)
+	var req struct {
+		Enabled *bool `json:"enabled" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		fail(c, http.StatusBadRequest, "enabled الزامی است")
+		return
+	}
+	if err := h.profiles.SetDailyReport(c.Request.Context(), user.ID, *req.Enabled); err != nil {
+		fail(c, http.StatusInternalServerError, "خطای داخلی")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"daily_report": *req.Enabled})
 }
 
 // getProfile GET /api/profile
