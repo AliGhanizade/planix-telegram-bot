@@ -1,23 +1,16 @@
-# محیط
+# environment
 .env
 .env.local
 
-# پوشه‌های ابزار و کش
+# build output and caches
 .gocache/
 .gomodcache/
-.agents/
-.claude/
-sources/
-AGENTS.md
-_snap/
-
-# بیلد و تست
 bin/
 dist/
 tmp/
 coverage.out
 *.exe
 
-# ادیتورها
+# editors
 .idea/
 .vscode/
