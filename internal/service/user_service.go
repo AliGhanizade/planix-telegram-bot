@@ -14,10 +14,10 @@ import (
 	"gorm.io/gorm"
 )
 
-// maxNameLen حداکثر طول مجاز نام و نام خانوادگی.
+// maxNameLen is the max allowed name length.
 const maxNameLen = 64
 
-// UserService پروفایل و تنظیمات کاربران.
+// UserService manages profiles and user settings.
 type UserService struct {
 	db    *gorm.DB
 	users *repository.UserRepository
@@ -25,7 +25,7 @@ type UserService struct {
 	log   *zap.Logger
 }
 
-// NewUserService سرویس کاربر را می‌سازد.
+// NewUserService builds the user service.
 func NewUserService(db *gorm.DB, log *zap.Logger) *UserService {
 	return &UserService{
 		db:    db,
@@ -35,7 +35,7 @@ func NewUserService(db *gorm.DB, log *zap.Logger) *UserService {
 	}
 }
 
-// Profile اطلاعات و آمار کاربر را برمی‌گرداند.
+// Profile returns the user info and task stats.
 func (s *UserService) Profile(ctx context.Context, userID uuid.UUID) (*domain.User, *TaskStats, error) {
 	u, err := s.users.GetByID(ctx, userID)
 	if err != nil {
@@ -54,7 +54,7 @@ func (s *UserService) Profile(ctx context.Context, userID uuid.UUID) (*domain.Us
 	return u, st, nil
 }
 
-// UpdateProfile فیلدهای ارسالی را بروزرسانی می‌کند؛ nil یعنی تغییر نکن.
+// UpdateProfile updates the given fields; nil means no change.
 func (s *UserService) UpdateProfile(ctx context.Context, userID uuid.UUID, firstName, lastName, timezone *string) (*domain.User, error) {
 	updates := map[string]any{}
 
@@ -98,7 +98,7 @@ func (s *UserService) UpdateProfile(ctx context.Context, userID uuid.UUID, first
 	return s.users.GetByID(ctx, userID)
 }
 
-// SetDailyReport خاموش/روشن کردن گزارش روزانه.
+// SetDailyReport turns the daily report on or off.
 func (s *UserService) SetDailyReport(ctx context.Context, userID uuid.UUID, enabled bool) error {
 	if err := s.users.SetDailyReport(ctx, userID, enabled); err != nil {
 		return err
@@ -107,7 +107,7 @@ func (s *UserService) SetDailyReport(ctx context.Context, userID uuid.UUID, enab
 	return nil
 }
 
-// audit تغییرات پروفایل را در ActivityLog ثبت می‌کند.
+// audit writes profile changes into ActivityLog.
 func (s *UserService) audit(ctx context.Context, userID uuid.UUID, action string, changed []string) {
 	raw := "{}"
 	if b, err := json.Marshal(changed); err == nil {
@@ -126,7 +126,7 @@ func (s *UserService) audit(ctx context.Context, userID uuid.UUID, action string
 	}
 }
 
-// strconvBool بولین را به رشته‌ی کوتاه برای متادیتا تبدیل می‌کند.
+// strconvBool renders a bool for audit metadata.
 func strconvBool(b bool) string {
 	if b {
 		return "on"

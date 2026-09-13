@@ -9,8 +9,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// SendLoginCode کد ورود پنل وب را در چت خصوصی کاربر می‌فرستد.
-// توسط httpapi برای جریان لاگین «وب‌محور» صدا زده می‌شود.
+// SendLoginCode dms the web login code to a user.
+// called by httpapi for the web initiated login flow.
 func (b *Bot) SendLoginCode(ctx context.Context, telegramID int64, code string, ttlMinutes int) error {
 	kb := models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{
@@ -21,7 +21,7 @@ func (b *Bot) SendLoginCode(ctx context.Context, telegramID int64, code string, 
 	return err
 }
 
-// issueWebCodeFromBot جریان «اتصال پنل وب» از داخل بات: کد صادر و در همین چت نشان داده می‌شود.
+// issueWebCodeFromBot is the in-chat web linking flow: issue a code and show it here.
 func (b *Bot) issueWebCodeFromBot(ctx context.Context, u *domain.User, chatID int64, messageID int) {
 	lc, err := b.auth.IssueLoginCode(ctx, u.ID, "bot")
 	if err != nil {

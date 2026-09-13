@@ -45,7 +45,7 @@ func TestFormatSmallInfo(t *testing.T) {
 		}
 	}
 
-	// بدون موعد نباید تایم‌استمپ داشته باشد.
+	// no due date means no timestamp in the output.
 	task.DueAt = nil
 	if strings.Contains(FormatSmallInfo(task), "📅") {
 		t.Error("FormatSmallInfo should not contain due emoji when DueAt is nil")

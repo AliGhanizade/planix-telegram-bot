@@ -14,7 +14,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// نام وضعیت‌های مکالمه‌ی چندمرحله‌ای بات.
+// conversation state names of the bot.
 const (
 	stateWaitingTaskTitle       = "waiting_task_title"
 	stateWaitingTaskDescription = "waiting_task_description"
@@ -27,7 +27,7 @@ const (
 	stateWaitingEditTimezone  = "waiting_edit_timezone"
 )
 
-// backRef مقصد بازگشت بعد از پایان یک جریان؛ برای سینک رابط کاربری.
+// backRef is where to re-render after a flow ends; keeps the ui in sync.
 type backRef struct {
 	Kind      string `json:"kind"` // card | list
 	Filter    string `json:"filter,omitempty"`
@@ -36,13 +36,13 @@ type backRef struct {
 	MessageID int    `json:"message_id"`
 }
 
-// sessionData داده‌ی JSON ذخیره‌شده در نشست کاربر.
+// sessionData is the json payload stored in a user session.
 type sessionData struct {
 	TaskID string   `json:"task_id,omitempty"`
 	Back   *backRef `json:"back,omitempty"`
 }
 
-// cardBackRef مبدأ کارت را به backRef تبدیل می‌کند.
+// cardBackRef converts a card origin into a backRef.
 func cardBackRef(chatID int64, messageID int, o ui.TaskOrigin) *backRef {
 	ref := &backRef{Kind: "card", ChatID: chatID, MessageID: messageID}
 	if o.List {
@@ -52,7 +52,7 @@ func cardBackRef(chatID int64, messageID int, o ui.TaskOrigin) *backRef {
 	return ref
 }
 
-// origin مبدأ ذخیره‌شده را به ui.TaskOrigin تبدیل می‌کند.
+// origin converts the stored ref into a ui.TaskOrigin.
 func (r *backRef) origin() ui.TaskOrigin {
 	if r == nil || r.Filter == "" {
 		return ui.NoOrigin
@@ -60,7 +60,7 @@ func (r *backRef) origin() ui.TaskOrigin {
 	return ui.TaskOrigin{List: true, Filter: r.Filter, Page: r.Page}
 }
 
-// setSession وضعیت مکالمه و داده‌ی آن را برای ۳۰ دقیقه ذخیره می‌کند.
+// setSession stores the conversation state and its data for 30 minutes.
 func (b *Bot) setSession(ctx context.Context, userID uuid.UUID, state string, data sessionData) error {
 	raw, err := json.Marshal(data)
 	if err != nil {
@@ -70,7 +70,7 @@ func (b *Bot) setSession(ctx context.Context, userID uuid.UUID, state string, da
 	return b.db.WithContext(ctx).Where("user_id = ?", userID).Assign(s).FirstOrCreate(&s).Error
 }
 
-// activeSession آخرین نشست معتبر کاربر را برمی‌گرداند.
+// activeSession returns the user's latest valid session.
 func (b *Bot) activeSession(ctx context.Context, userID uuid.UUID) (domain.BotSession, bool, error) {
 	var session domain.BotSession
 	err := b.db.WithContext(ctx).
@@ -86,12 +86,12 @@ func (b *Bot) activeSession(ctx context.Context, userID uuid.UUID) (domain.BotSe
 	return session, true, nil
 }
 
-// clearSession نشست فعال کاربر را حذف می‌کند.
+// clearSession removes the active session of a user.
 func (b *Bot) clearSession(ctx context.Context, userID uuid.UUID) error {
 	return b.db.WithContext(ctx).Where("user_id = ?", userID).Delete(&domain.BotSession{}).Error
 }
 
-// checkState پیام آزاد کاربر را بر اساس وضعیت جاری مکالمه پردازش می‌کند.
+// checkState processes free text based on the current conversation state.
 func (b *Bot) checkState(ctx context.Context, u *domain.User, text string, chatID int64) error {
 	session, ok, err := b.activeSession(ctx, u.ID)
 	if err != nil || !ok {
@@ -115,7 +115,7 @@ func (b *Bot) checkState(ctx context.Context, u *domain.User, text string, chatI
 	return nil
 }
 
-// handleProfileEditInput مقدار جدید فیلد پروفایل را ذخیره و منوی ویرایش را دوباره رندر می‌کند.
+// handleProfileEditInput saves the new profile field value and re-renders the edit menu.
 func (b *Bot) handleProfileEditInput(ctx context.Context, u *domain.User, session domain.BotSession, text string) error {
 	var data sessionData
 	_ = json.Unmarshal([]byte(session.Data), &data)
@@ -141,7 +141,7 @@ func (b *Bot) handleProfileEditInput(ctx context.Context, u *domain.User, sessio
 		if rerr != nil {
 			return err
 		}
-		// نشست باز بماند تا کاربر مقدار درست بفرستد.
+		// keep the session open so the user can send a valid value.
 		return nil
 	}
 
@@ -149,7 +149,7 @@ func (b *Bot) handleProfileEditInput(ctx context.Context, u *domain.User, sessio
 		return err
 	}
 
-	// سینک: منوی ویرایش در همان پیام قبلی بروزرسانی می‌شود.
+	// sync: the edit menu re-renders on the same message.
 	if data.Back != nil {
 		b.showProfileEdit(ctx, u, data.Back.ChatID, data.Back.MessageID)
 		return nil
@@ -158,12 +158,12 @@ func (b *Bot) handleProfileEditInput(ctx context.Context, u *domain.User, sessio
 	return nil
 }
 
-// handleTitleInput عنوان جدید می‌سازد یا عنوان تسک موجودی را ویرایش می‌کند.
+// handleTitleInput creates a task or edits the title of an existing one.
 func (b *Bot) handleTitleInput(ctx context.Context, u *domain.User, session domain.BotSession, text string) error {
 	var data sessionData
 	_ = json.Unmarshal([]byte(session.Data), &data)
 
-	// حالت ویرایش: نشست حاوی شناسه‌ی تسک است.
+	// edit mode: the session holds a task id.
 	if data.TaskID != "" {
 		id, err := uuid.Parse(data.TaskID)
 		if err != nil {
@@ -181,7 +181,7 @@ func (b *Bot) handleTitleInput(ctx context.Context, u *domain.User, session doma
 		return nil
 	}
 
-	// حالت ایجاد تسک جدید.
+	// create new task mode.
 	if err := b.clearSession(ctx, u.ID); err != nil {
 		return err
 	}
@@ -195,7 +195,7 @@ func (b *Bot) handleTitleInput(ctx context.Context, u *domain.User, session doma
 	return err
 }
 
-// handleDescriptionInput توضیحات تسکِ در حال ویرایش را ذخیره می‌کند.
+// handleDescriptionInput saves the description of the task being edited.
 func (b *Bot) handleDescriptionInput(ctx context.Context, u *domain.User, session domain.BotSession, text string) error {
 	var data sessionData
 	if err := json.Unmarshal([]byte(session.Data), &data); err != nil || data.TaskID == "" {
@@ -217,7 +217,7 @@ func (b *Bot) handleDescriptionInput(ctx context.Context, u *domain.User, sessio
 	return nil
 }
 
-// handleSearchInput جستجوی کاربر را اجرا و نتایج را نشان می‌دهد.
+// handleSearchInput runs the search and shows the results.
 func (b *Bot) handleSearchInput(ctx context.Context, u *domain.User, session domain.BotSession, text string, chatID int64) error {
 	if err := b.clearSession(ctx, u.ID); err != nil {
 		return err
@@ -239,7 +239,7 @@ func (b *Bot) handleSearchInput(ctx context.Context, u *domain.User, session dom
 	return err
 }
 
-// handleAssignInput ورودی «واگذاری تسک» را تجزیه و تسک‌ها را ثبت می‌کند.
+// handleAssignInput parses the assignment input and saves the tasks.
 func (b *Bot) handleAssignInput(ctx context.Context, u *domain.User, text string, chatID int64) error {
 	lines := strings.Split(text, "\n")
 	if len(lines) < 2 {
@@ -262,7 +262,7 @@ func (b *Bot) handleAssignInput(ctx context.Context, u *domain.User, text string
 	return b.clearSession(ctx, u.ID)
 }
 
-// handleStatusInput وضعیت تسک‌های واگذارشده به کاربر هدف را نشان می‌دهد.
+// handleStatusInput shows the status of tasks delegated to the target user.
 func (b *Bot) handleStatusInput(ctx context.Context, u *domain.User, text string, chatID int64) error {
 	username := strings.TrimPrefix(strings.TrimSpace(text), "@")
 	target, err := b.users.GetByUsername(ctx, username)
@@ -276,7 +276,7 @@ func (b *Bot) handleStatusInput(ctx context.Context, u *domain.User, text string
 	return b.renderDelegatedStatus(ctx, chatID, 0, u.ID, target.ID)
 }
 
-// startEditSession برای ویرایش یک تسک، نشست کاربر را با شناسه‌ی تسک و مقصد بازگشت آماده می‌کند.
+// startEditSession prepares a session for editing a task with its back target.
 func (b *Bot) startEditSession(ctx context.Context, userID uuid.UUID, state string, taskID uuid.UUID, back *backRef) error {
 	return b.setSession(ctx, userID, state, sessionData{TaskID: taskID.String(), Back: back})
 }

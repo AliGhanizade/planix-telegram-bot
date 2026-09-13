@@ -1,6 +1,6 @@
-// Package logger سازنده‌ی لاگر zap برای کل برنامه است؛ خروجی پروداکشن JSON
-// با نمونه‌گیری است و محیط توسعه خروجی کنسولی رنگی می‌دهد. همه‌ی اجزا
-// (HTTP، بات، دیتابیس و سرویس‌ها) لاگرشان از همین‌جا ساخته می‌شود.
+// Package logger builds the zap logger for the whole app; production uses json
+// with sampling and development uses colored console output. All parts
+// (HTTP, bot, database and services) get their logger from here.
 package logger
 
 import (
@@ -8,13 +8,13 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-// New لاگر ریشه‌ی برنامه را با سطح و محیط مشخص می‌سازد.
+// New builds the root logger for the given level and environment.
 func New(level, appEnv string) (*zap.Logger, error) {
 	var config zap.Config
 	if appEnv == "production" {
 		config = zap.NewProductionConfig()
 		config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-		// در پروداکشن حجم لاگ کنترل می‌شود: بعد از ۱۰۰ لاگ مشابه، هر صدتا یکی.
+		// production caps log volume: after 100 similar entries, one in a hundred.
 		config.Sampling = &zap.SamplingConfig{Initial: 100, Thereafter: 100}
 	} else {
 		config = zap.NewDevelopmentConfig()
@@ -38,7 +38,7 @@ func New(level, appEnv string) (*zap.Logger, error) {
 	), nil
 }
 
-// NewNop لاگر بی‌اثر برای تست‌ها برمی‌گرداند.
+// NewNop returns a no-op logger for tests.
 func NewNop() *zap.Logger {
 	return zap.NewNop()
 }

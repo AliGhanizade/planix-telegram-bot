@@ -6,7 +6,7 @@ import (
 	"github.com/go-telegram/bot/models"
 )
 
-// متن‌های ثابت بات.
+// bot message texts.
 const (
 	MenuText = "🗂 منوی پلنیکس\n\nیک گزینه را انتخاب کن:"
 
@@ -23,7 +23,7 @@ const (
 	StatusPickPrompt = "📊 برای چه کسی می‌خوای وضعیت تسک‌هاشو ببینی؟"
 )
 
-// WelcomeMessage پیام خوش‌آمد /start را می‌سازد.
+// WelcomeMessage builds the /start welcome message.
 func WelcomeMessage(me *models.User) string {
 	name := "پلنیکس"
 	if me != nil && me.FirstName != "" {
@@ -39,7 +39,7 @@ func WelcomeMessage(me *models.User) string {
 		"📊 وضعیت وظایف — پیگیری کارهای واگذارشده", name)
 }
 
-// HelpMessage متن راهنمای کامل بات.
+// HelpMessage is the full help text.
 const HelpMessage = "ℹ️ راهنمای پلنیکس\n\n" +
 	"➕ تسک جدید — ثبت سریع تسک برای خودت\n" +
 	"📋 برنامه امروز — فهرست کارهای باز با فیلتر و صفحه‌بندی\n" +
@@ -50,7 +50,7 @@ const HelpMessage = "ℹ️ راهنمای پلنیکس\n\n" +
 	"⚙️ تنظیمات — گزارش روزانه، ویرایش اطلاعات و اتصال پنل وب\n\n" +
 	"از کارت هر تسک می‌توانی تیک بزنی، عنوان و توضیحات و موعد و اولویت را عوض کنی یا حذفش کنی."
 
-// WebCodeMessage پیام کد ورود پنل وب را می‌سازد.
+// WebCodeMessage builds the web login code message.
 func WebCodeMessage(code string, minutes int) string {
 	return fmt.Sprintf("🌐 کد ورود پنل وب پلنیکس\n\n"+
 		"کد ورود: %s\n\n"+
@@ -58,7 +58,7 @@ func WebCodeMessage(code string, minutes int) string {
 		"اگر شما این درخواست را نداده بودید، پیام را نادیده بگیرید.", code, minutes)
 }
 
-// DailyReportLabel برچسب روشن/خاموش گزارش روزانه.
+// DailyReportLabel renders the on/off label for the daily report.
 func DailyReportLabel(on bool) string {
 	if on {
 		return "روشن ✅"

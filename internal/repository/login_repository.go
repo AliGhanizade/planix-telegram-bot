@@ -9,12 +9,12 @@ import (
 	"gorm.io/gorm"
 )
 
-// LoginCodeRepository کوئری‌های کدهای یک‌بارمصرف ورود وب.
+// LoginCodeRepository holds queries for web login codes.
 type LoginCodeRepository struct{ db *gorm.DB }
 
 func NewLoginCode(db *gorm.DB) *LoginCodeRepository { return &LoginCodeRepository{db} }
 
-// Create کد جدید ذخیره می‌کند و کدهای قبلیِ مصرف‌نشده‌ی همان کاربر را باطل می‌کند.
+// Create stores a new code and voids the user's previous unused ones.
 func (r *LoginCodeRepository) Create(ctx context.Context, c *domain.LoginCode) error {
 	if err := r.db.WithContext(ctx).
 		Where("user_id = ? AND used_at IS NULL", c.UserID).
@@ -24,7 +24,7 @@ func (r *LoginCodeRepository) Create(ctx context.Context, c *domain.LoginCode) e
 	return r.db.WithContext(ctx).Create(c).Error
 }
 
-// FindActive کدِ معتبر و مصرف‌نشده را برمی‌گرداند.
+// FindActive returns a valid unused code.
 func (r *LoginCodeRepository) FindActive(ctx context.Context, code string) (*domain.LoginCode, error) {
 	var v domain.LoginCode
 	err := r.db.WithContext(ctx).
@@ -33,22 +33,22 @@ func (r *LoginCodeRepository) FindActive(ctx context.Context, code string) (*dom
 	return &v, err
 }
 
-// MarkUsed کد را مصرف‌شده علامت می‌زند.
+// MarkUsed marks a code as used.
 func (r *LoginCodeRepository) MarkUsed(ctx context.Context, id uuid.UUID, at time.Time) error {
 	return r.db.WithContext(ctx).Model(&domain.LoginCode{}).Where("id = ?", id).Update("used_at", at).Error
 }
 
-// WebSessionRepository کوئری‌های نشست‌های پنل وب.
+// WebSessionRepository holds queries for web sessions.
 type WebSessionRepository struct{ db *gorm.DB }
 
 func NewWebSession(db *gorm.DB) *WebSessionRepository { return &WebSessionRepository{db} }
 
-// Create نشست جدید ذخیره می‌کند.
+// Create stores a new session.
 func (r *WebSessionRepository) Create(ctx context.Context, s *domain.WebSession) error {
 	return r.db.WithContext(ctx).Create(s).Error
 }
 
-// GetByToken نشست فعال را با توکن برمی‌گرداند.
+// GetByToken returns an active session by token.
 func (r *WebSessionRepository) GetByToken(ctx context.Context, token string) (*domain.WebSession, error) {
 	var v domain.WebSession
 	err := r.db.WithContext(ctx).
@@ -57,8 +57,8 @@ func (r *WebSessionRepository) GetByToken(ctx context.Context, token string) (*d
 	return &v, err
 }
 
-// Touch آخرین فعالیت نشست را ثبت و در صورت نزدیک بودن انقضا، تمدید می‌کند.
-// خروجی دوم یعنی نشست تمدید شده است.
+// Touch updates last activity and extends the session when expiry is near.
+// the second return value says whether the session was extended.
 func (r *WebSessionRepository) Touch(ctx context.Context, s *domain.WebSession, now time.Time, ttl, extendWindow time.Duration) (bool, error) {
 	updates := map[string]any{"last_seen_at": now}
 	extended := false
@@ -76,7 +76,7 @@ func (r *WebSessionRepository) Touch(ctx context.Context, s *domain.WebSession, 
 	return extended, nil
 }
 
-// Delete توکن را باطل می‌کند (خروج از حساب).
+// Delete revokes a token (logout).
 func (r *WebSessionRepository) Delete(ctx context.Context, token string) error {
 	return r.db.WithContext(ctx).Where("token = ?", token).Delete(&domain.WebSession{}).Error
 }

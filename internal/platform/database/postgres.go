@@ -1,4 +1,4 @@
-// Package database اتصال دیتابیس و مهاجرت اسکیما را مدیریت می‌کند.
+// Package database manages the database connection and schema migration.
 package database
 
 import (
@@ -8,8 +8,8 @@ import (
 	"gorm.io/gorm"
 )
 
-// Open اتصال PostgreSQL را باز می‌کند، لاگر zap را به GORM وصل می‌کند
-// و همه‌ی مدل‌ها را مهاجرت می‌دهد.
+// Open opens the postgres connection, wires the zap logger into gorm
+// and migrates all models.
 func Open(url string, log *zap.Logger) (*gorm.DB, error) {
 	db, err := gorm.Open(postgres.Open(url), &gorm.Config{Logger: NewGormLogger(log)})
 	if err != nil {

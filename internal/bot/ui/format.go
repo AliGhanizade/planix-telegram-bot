@@ -6,7 +6,7 @@ import (
 	"github.com/AliGhanizade/planix-telegram-bot/internal/domain"
 )
 
-// PriorityLabels برچسب فارسی اولویت‌ها. برچسب فارسی اولویت‌ها.
+// PriorityLabels maps priority codes to labels.
 var PriorityLabels = map[string]string{
 	"low":    "🟢 کم",
 	"normal": "🟡 معمولی",
@@ -14,14 +14,14 @@ var PriorityLabels = map[string]string{
 	"urgent": "🔴 فوری",
 }
 
-// StatusLabels برچسب فارسی وضعیت‌ها. برچسب فارسی وضعیت‌ها.
+// StatusLabels maps status codes to labels.
 var StatusLabels = map[string]string{
 	"pending":   "⏳ در انتظار",
 	"completed": "✅ انجام شده",
 	"cancelled": "❌ لغو شده",
 }
 
-// statusEmoji نشان وضعیت برای فهرست‌ها.
+// statusEmoji is the status icon used in lists.
 func StatusEmoji(status string) string {
 	switch status {
 	case "completed":
@@ -33,7 +33,7 @@ func StatusEmoji(status string) string {
 	}
 }
 
-// PriorityLabel برچسب فارسی اولویت را برمی‌گرداند؛ در نبود برچسب، مقدار خام.
+// PriorityLabel returns the display label of a priority.
 func PriorityLabel(priority string) string {
 	if label, ok := PriorityLabels[priority]; ok {
 		return label
@@ -41,7 +41,7 @@ func PriorityLabel(priority string) string {
 	return priority
 }
 
-// StatusLabel برچسب فارسی وضعیت را برمی‌گرداند.
+// StatusLabel returns the display label of a status.
 func StatusLabel(status string) string {
 	if label, ok := StatusLabels[status]; ok {
 		return label
@@ -49,7 +49,7 @@ func StatusLabel(status string) string {
 	return status
 }
 
-// DueLabel موعد تسک را به شکل خوانا برمی‌گرداند.
+// DueLabel formats the task due date.
 func DueLabel(task *domain.Task) string {
 	if task.DueAt == nil {
 		return "ندارد"
@@ -57,7 +57,7 @@ func DueLabel(task *domain.Task) string {
 	return task.DueAt.Format("01-02 15:04")
 }
 
-// FormatTask کارت کامل یک تسک را به فارسی می‌سازد.
+// FormatTask builds the full task card.
 func FormatTask(task *domain.Task) string {
 	completed := "-"
 	if task.CompletedAt != nil {
@@ -89,7 +89,7 @@ func FormatTask(task *domain.Task) string {
 	)
 }
 
-// FormatSmallInfo یک خط خلاصه برای فهرست‌ها می‌سازد.
+// FormatSmallInfo builds a one line summary for lists.
 func FormatSmallInfo(task *domain.Task) string {
 	line := fmt.Sprintf("%s %s — %s", StatusEmoji(task.Status), task.Title, PriorityLabel(task.Priority))
 	if task.DueAt != nil {

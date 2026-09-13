@@ -1,4 +1,4 @@
-// Package config تنظیمات اجرایی بات را از متغیرهای محیطی می‌خواند.
+// Package config reads bot settings from environment variables.
 package config
 
 import (
@@ -7,7 +7,7 @@ import (
 	"strconv"
 )
 
-// Config مجموعه‌ی تنظیمات لازم برای اجرای پلنیکس است.
+// Config holds the settings needed to run planix.
 type Config struct {
 	AppEnv                string
 	HTTPAddr              string
@@ -22,8 +22,8 @@ type Config struct {
 	WebCORSOrigin         string
 }
 
-// Load تنظیمات را می‌خواند و مقادیر اجباری را بررسی می‌کند.
-// توکن بات هرگز مقدار پیش‌فرض ندارد و همیشه باید از متغیر محیطی خوانده شود.
+// Load reads the settings and checks required values.
+// the bot token never has a default and always comes from the environment.
 func Load() (Config, error) {
 	c := Config{
 		AppEnv:                env("APP_ENV", "development"),
@@ -47,7 +47,7 @@ func Load() (Config, error) {
 	return c, nil
 }
 
-// env مقدار متغیر محیطی را برمی‌گرداند یا در نبودش مقدار پیش‌فرض را.
+// env returns an environment variable or a fallback.
 func env(key, fallback string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
@@ -55,7 +55,7 @@ func env(key, fallback string) string {
 	return fallback
 }
 
-// envInt مقدار عددی متغیر محیطی را برمی‌گرداند یا در نبود/نامعتبری آن مقدار پیش‌فرض را.
+// envInt returns an int env var or the fallback when missing or invalid.
 func envInt(key string, fallback int) int {
 	if value := os.Getenv(key); value != "" {
 		if n, err := strconv.Atoi(value); err == nil && n > 0 {

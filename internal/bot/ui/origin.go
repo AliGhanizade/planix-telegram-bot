@@ -6,20 +6,20 @@ import (
 	"strings"
 )
 
-// PageSize تعداد تسک در هر صفحه‌ی فهرست است.
+// PageSize is the number of tasks per list page.
 const PageSize = 5
 
-// ListFilter فیلتر وضعیت فهرست تسک‌ها.
+// ListFilter is the status filter of the task list.
 type ListFilter string
 
-// مقادیر فیلتر فهرست.
+// task list filter values.
 const (
 	FilterPending   ListFilter = "pending"
 	FilterCompleted ListFilter = "completed"
 	FilterAll       ListFilter = "all"
 )
 
-// Label عنوان فارسی فیلتر.
+// Label is the display name of the filter.
 func (f ListFilter) Label() string {
 	switch f {
 	case FilterCompleted:
@@ -31,7 +31,7 @@ func (f ListFilter) Label() string {
 	}
 }
 
-// EmptyText پیام حالت خالی فیلتر.
+// EmptyText is the message shown for an empty list.
 func (f ListFilter) EmptyText() string {
 	switch f {
 	case FilterCompleted:
@@ -43,7 +43,7 @@ func (f ListFilter) EmptyText() string {
 	}
 }
 
-// ParseListFilter فیلتر را از دیتای کال‌بک می‌خواند.
+// ParseListFilter reads a filter from callback data.
 func ParseListFilter(s string) ListFilter {
 	switch s {
 	case string(FilterCompleted):
@@ -55,7 +55,7 @@ func ParseListFilter(s string) ListFilter {
 	}
 }
 
-// AtoiOr عدد را از دیتای کال‌بک می‌خواند؛ در خطا مقدار پیش‌فرض.
+// AtoiOr parses a page number from callback data, falling back on error.
 func AtoiOr(s string, fallback int) int {
 	if n, err := strconv.Atoi(s); err == nil && n > 0 {
 		return n
@@ -63,12 +63,12 @@ func AtoiOr(s string, fallback int) int {
 	return fallback
 }
 
-// SplitCallback دیتای کال‌بک را به اجزا می‌شکند.
+// SplitCallback splits callback data into parts.
 func SplitCallback(data string) []string {
 	return strings.Split(data, ":")
 }
 
-// Truncate عنوان را برای جا شدن در دکمه کوتاه می‌کند.
+// Truncate shortens a title to fit inside a button.
 func Truncate(s string, n int) string {
 	r := []rune(s)
 	if len(r) <= n {
@@ -77,17 +77,17 @@ func Truncate(s string, n int) string {
 	return string(r[:n-1]) + "…"
 }
 
-// TaskOrigin مبدأ نمایش یک تسک را مشخص می‌کند: فهرست (با فیلتر و صفحه) یا کارت مستقل.
+// TaskOrigin says where a task view came from: the list (with filter and page) or a standalone card.
 type TaskOrigin struct {
 	List   bool
 	Filter string
 	Page   int
 }
 
-// NoOrigin مبدأ مستقل (کارت باز‌شده از جستجو و…).
+// NoOrigin means the view was opened outside the task list.
 var NoOrigin = TaskOrigin{}
 
-// Suffix پسوند مبدأ را برای دیتای کال‌بک می‌سازد.
+// Suffix builds the origin suffix for callback data.
 func (o TaskOrigin) Suffix() string {
 	if !o.List {
 		return ":C"
@@ -95,7 +95,7 @@ func (o TaskOrigin) Suffix() string {
 	return fmt.Sprintf(":L:%s:%d", o.Filter, o.Page)
 }
 
-// ParseTaskOrigin پسوند مبدأ را از اجزای دیتای کال‌بک می‌خواند.
+// ParseTaskOrigin reads the origin suffix from callback data parts.
 func ParseTaskOrigin(parts []string, idx int) (TaskOrigin, error) {
 	if idx >= len(parts) {
 		return NoOrigin, nil
@@ -119,17 +119,17 @@ func ParseTaskOrigin(parts []string, idx int) (TaskOrigin, error) {
 	}
 }
 
-// TaskData دیتای کال‌بک یک عملیات تسک را با مبدأ می‌سازد.
+// TaskData builds callback data for a task action with its origin.
 func TaskData(action string, id interface{ String() string }, o TaskOrigin) string {
 	return "task:" + action + ":" + id.String() + o.Suffix()
 }
 
-// ListData دیتای کال‌بک فهرست تسک‌ها را می‌سازد.
+// ListData builds callback data for the task list.
 func ListData(f ListFilter, page int) string {
 	return fmt.Sprintf("list:tasks:%s:%d", f, page)
 }
 
-// BackDataOf دکمه‌ی بازگشتِ مناسب برای یک مبدأ را برمی‌گرداند.
+// BackDataOf returns the right back button callback for an origin.
 func BackDataOf(o TaskOrigin) string {
 	if o.List {
 		return ListData(ListFilter(o.Filter), o.Page)

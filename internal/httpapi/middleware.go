@@ -11,15 +11,15 @@ import (
 	"go.uber.org/zap"
 )
 
-// context keys برای مقادیر درج‌شده در درخواست.
+// context keys for values stored on the request.
 const (
 	ctxRequestID = "planix.request_id"
 	ctxLogger    = "planix.logger"
 	ctxUser      = "planix.user"
 )
 
-// RequestID برای هر درخواست شناسه یکتا تولید و در هدر پاسخ برمی‌گرداند
-// و در کانتکست قرار می‌دهد تا همه‌ی لاگ‌های همان درخواست قابل ردیابی باشند.
+// RequestID generates a unique id per request, echoes it in the response header
+// and stores it in the context so all logs of the request are traceable.
 func RequestID() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.GetHeader("X-Request-ID")
@@ -32,7 +32,7 @@ func RequestID() gin.HandlerFunc {
 	}
 }
 
-// RequestLogger پایان هر درخواست را با لاگر اختصاصی همان درخواست لاگ می‌کند.
+// RequestLogger logs every request with its own correlated logger.
 func RequestLogger(root *zap.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
@@ -54,7 +54,7 @@ func RequestLogger(root *zap.Logger) gin.HandlerFunc {
 	}
 }
 
-// CORS هدرهای اشتراک‌گذاری منابع را برای پنل وب تنظیم می‌کند.
+// CORS sets cross origin headers for the web panel.
 func CORS(origin string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", origin)
@@ -69,7 +69,7 @@ func CORS(origin string) gin.HandlerFunc {
 	}
 }
 
-// requestIDOf شناسه‌ی درخواست را از کانتکست می‌خواند.
+// requestIDOf reads the request id from the context.
 func requestIDOf(c *gin.Context) string {
 	if id, ok := c.Get(ctxRequestID); ok {
 		return id.(string)
@@ -77,7 +77,7 @@ func requestIDOf(c *gin.Context) string {
 	return ""
 }
 
-// requestLoggerOf لاگر اختصاصی درخواست را از کانتکست می‌خواند.
+// requestLoggerOf reads the per request logger from the context.
 func requestLoggerOf(c *gin.Context) *zap.Logger {
 	if l, ok := c.Get(ctxLogger); ok {
 		return l.(*zap.Logger)
@@ -85,7 +85,7 @@ func requestLoggerOf(c *gin.Context) *zap.Logger {
 	return zap.NewNop()
 }
 
-// Auth میدل‌ور نشست وب: توکن Bearer را بررسی و کاربر را در کانتکست می‌گذارد.
+// Auth validates the bearer token and stores the user in the context.
 func Auth(auth *service.AuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := bearerToken(c)
@@ -103,7 +103,7 @@ func Auth(auth *service.AuthService) gin.HandlerFunc {
 	}
 }
 
-// RateLimit محدودکننده‌ی ساده‌ی نرخ درخواست بر اساس IP (برای مسیرهای عمومی احراز هویت).
+// RateLimit is a simple per ip request limiter for public auth routes.
 func RateLimit(perMinute int) gin.HandlerFunc {
 	type bucket struct {
 		count int

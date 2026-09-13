@@ -11,14 +11,14 @@ import (
 	gormlogger "gorm.io/gorm/logger"
 )
 
-// zapGormLogger لاگر GORM را داخل zap برنامه می‌برد تا همه‌ی لاگ‌ها یک‌جا باشند.
+// zapGormLogger routes gorm logging into the app zap logger.
 type zapGormLogger struct {
 	log   *zap.Logger
 	cfg   gormlogger.Config
 	level gormlogger.LogLevel
 }
 
-// NewGormLogger آداپتور zap برای GORM می‌سازد؛ کوئری‌های کند و خطاها برجسته می‌شوند.
+// NewGormLogger adapts gorm logging into zap and flags slow queries.
 func NewGormLogger(log *zap.Logger) gormlogger.Interface {
 	return &zapGormLogger{
 		log: log,
@@ -56,7 +56,7 @@ func (l *zapGormLogger) Error(ctx context.Context, msg string, args ...interface
 	}
 }
 
-// Trace هر کوئری را بررسی می‌کند: خطا، کندی و در سطح debug خود کوئری.
+// Trace inspects each query: errors, slow ones and debug level traces.
 func (l *zapGormLogger) Trace(ctx context.Context, begin time.Time, fc func() (string, int64), err error) {
 	if l.level <= gormlogger.Silent {
 		return
@@ -90,7 +90,7 @@ func (l *zapGormLogger) Trace(ctx context.Context, begin time.Time, fc func() (s
 	}
 }
 
-// argsToFields آرگومان‌های متنوع GORM را به فیلد zap تبدیل می‌کند.
+// argsToFields converts gorm log args into zap fields.
 func argsToFields(args []interface{}) []zap.Field {
 	fields := make([]zap.Field, 0, len(args))
 	for i, a := range args {

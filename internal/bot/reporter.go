@@ -12,9 +12,9 @@ import (
 	"go.uber.org/zap"
 )
 
-// cbList کال‌بک‌های list:* (ناوبری فهرست تسک‌ها) را پردازش می‌کند.
+// cbList handles list:* callbacks (task list navigation).
 func (b *Bot) cbList(ctx context.Context, q *models.CallbackQuery) {
-	// فرمت: list:tasks:<filter>:<page>
+	// format: list:tasks:<filter>:<page>
 	parts := ui.SplitCallback(q.Data)
 	if len(parts) < 4 {
 		b.answer(ctx, q, "")
@@ -40,8 +40,8 @@ func (b *Bot) cbList(ctx context.Context, q *models.CallbackQuery) {
 	}
 }
 
-// renderTaskList فهرست تسک‌های کاربر را با فیلتر و صفحه‌بندی رندر می‌کند.
-// اگر messageID بزرگ‌تر از صفر باشد همان پیام درجا ویرایش می‌شود (سینک UI).
+// renderTaskList renders the user task list with filter and pagination.
+// when messageID is greater than zero the same message is edited in place (ui sync).
 func (b *Bot) renderTaskList(ctx context.Context, chatID int64, messageID int, userID uuid.UUID, f ui.ListFilter, page int) error {
 	tasks, total, err := b.tasks.ListFiltered(ctx, userID, string(f), page, ui.PageSize)
 	if err != nil {
@@ -69,7 +69,7 @@ func (b *Bot) renderTaskList(ctx context.Context, chatID int64, messageID int, u
 	return b.render(ctx, chatID, messageID, text, markup)
 }
 
-// renderTaskCard کارت کامل تسک را با دکمه‌های مدیریتی رندر می‌کند.
+// renderTaskCard renders the full task card with management buttons.
 func (b *Bot) renderTaskCard(ctx context.Context, chatID int64, messageID int, taskID uuid.UUID, o ui.TaskOrigin) error {
 	task, err := b.tasks.GetByID(ctx, taskID)
 	if err != nil {
@@ -79,7 +79,7 @@ func (b *Bot) renderTaskCard(ctx context.Context, chatID int64, messageID int, t
 	return b.render(ctx, chatID, messageID, text, ui.TaskCardKeyboard(task, o))
 }
 
-// notifyOwner وقتی مجری تسکِ واگذارشده را انجام می‌دهد، مالک را خبر می‌کند.
+// notifyOwner tells the owner when someone works on their delegated task.
 func (b *Bot) notifyOwner(ctx context.Context, task *domain.Task, actor string) {
 	if task.OwnerID == task.AssigneeID {
 		return
@@ -98,7 +98,7 @@ func (b *Bot) notifyOwner(ctx context.Context, task *domain.Task, actor string) 
 	}
 }
 
-// setTaskForOther چند تسک را به کاربر دیگر واگذار می‌کند و هر دو طرف را خبر می‌کند.
+// setTaskForOther delegates several tasks to another user and notifies both sides.
 func (b *Bot) setTaskForOther(ctx context.Context, ownerID, assigneeID uuid.UUID, titles []string, priority string) error {
 	for _, title := range titles {
 		task := &domain.Task{OwnerID: ownerID, AssigneeID: assigneeID, Title: title, Priority: priority, Status: "pending"}

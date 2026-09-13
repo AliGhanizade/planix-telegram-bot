@@ -9,8 +9,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// SendDailyReports گزارش روزانه را برای همه‌ی کاربرانی که روشن گذاشته‌اند می‌فرستد.
-// توسط زمان‌بند (cron) صدا زده می‌شود.
+// SendDailyReports sends the daily digest to users who kept it enabled.
+// invoked by the cron scheduler.
 func (b *Bot) SendDailyReports(ctx context.Context) {
 	users, err := b.users.ListActiveWithDailyReport(ctx)
 	if err != nil {
@@ -46,8 +46,8 @@ func (b *Bot) SendDailyReports(ctx context.Context) {
 	b.log.Info("daily reports sent", zap.Int("sent", sent), zap.Int("users", len(users)))
 }
 
-// SendDueReminders برای تسک‌هایی که تا مدت lead آینده موعدشان تمام می‌شود
-// یادآوری می‌فرستد و هر تسک فقط یک بار یادآوری می‌شود.
+// SendDueReminders notifies assignees of tasks due within the lead window;
+// each task is reminded only once.
 func (b *Bot) SendDueReminders(ctx context.Context, lead time.Duration) {
 	now := time.Now()
 	tasks, err := b.tasks.DueSoon(ctx, now, now.Add(lead))
@@ -83,7 +83,7 @@ func (b *Bot) SendDueReminders(ctx context.Context, lead time.Duration) {
 	}
 }
 
-// humanDuration مدت زمان را به فارسی خوانا می‌کند.
+// humanDuration renders a duration in words.
 func humanDuration(d time.Duration) string {
 	if d <= 0 {
 		return "همین حالا"

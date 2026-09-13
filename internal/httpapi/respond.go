@@ -8,12 +8,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// fail پاسخ خطای استاندارد {error: "..."}.
+// fail writes the standard error body {error: "..."}.
 func fail(c *gin.Context, status int, message string) {
 	c.JSON(status, gin.H{"error": message})
 }
 
-// bearerToken توکن از هدر Authorization را برمی‌گرداند.
+// bearerToken extracts the token from the Authorization header.
 func bearerToken(c *gin.Context) string {
 	header := c.GetHeader("Authorization")
 	if token, ok := strings.CutPrefix(header, "Bearer "); ok {
@@ -22,7 +22,7 @@ func bearerToken(c *gin.Context) string {
 	return ""
 }
 
-// currentUser کاربر تاییدشده توسط میدل‌ور Auth را از کانتکست می‌خواند.
+// currentUser reads the user stored by the Auth middleware.
 func currentUser(c *gin.Context) *domain.User {
 	if v, ok := c.Get(ctxUser); ok {
 		return v.(*domain.User)
@@ -30,8 +30,8 @@ func currentUser(c *gin.Context) *domain.User {
 	return nil
 }
 
-// zapErr فیلد لاگ خطا.
+// zapErr builds an error log field.
 func zapErr(err error) zap.Field { return zap.Error(err) }
 
-// zapStr فیلد لاگ رشته‌ای.
+// zapStr builds a string log field.
 func zapStr(key, value string) zap.Field { return zap.String(key, value) }

@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// stateFieldEdit نام وضعیت برای هر فیلد پروفایل.
+// stateFieldEdit maps a profile field to its state name.
 func stateFieldEdit(field string) (string, bool) {
 	switch field {
 	case "firstname":
@@ -22,7 +22,7 @@ func stateFieldEdit(field string) (string, bool) {
 	return "", false
 }
 
-// showProfileEdit منوی ویرایش اطلاعات کاربر را با مقادیر فعلی رندر می‌کند.
+// showProfileEdit renders the profile edit menu with current values.
 func (b *Bot) showProfileEdit(ctx context.Context, u *domain.User, chatID int64, messageID int) {
 	text := fmt.Sprintf("✏️ ویرایش اطلاعات\n\n"+
 		"🪪 نام: %s\n"+
@@ -38,9 +38,9 @@ func (b *Bot) showProfileEdit(ctx context.Context, u *domain.User, chatID int64,
 	}
 }
 
-// startProfileFieldEdit شروع ویرایش یک فیلد مشخص پروفایل.
+// startProfileFieldEdit starts editing one profile field.
 func (b *Bot) startProfileFieldEdit(ctx context.Context, u *domain.User, data string, chatID int64, messageID int) {
-	// فرمت: settings:edit:<field>
+	// format: settings:edit:<field>
 	parts := ui.SplitCallback(data)
 	if len(parts) < 3 {
 		return
@@ -66,7 +66,7 @@ func (b *Bot) startProfileFieldEdit(ctx context.Context, u *domain.User, data st
 	}
 }
 
-// displayName مقدار را با جایگزین پیش‌فرض برمی‌گرداند.
+// displayName returns the value or a fallback.
 func displayName(value, fallback string) string {
 	if value == "" {
 		return fallback

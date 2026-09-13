@@ -1,4 +1,4 @@
-// Planix Telegram Bot — بات تلگرامی فارسی برای برنامه‌ریزی و پیگیری تسک‌ها.
+// Planix Telegram Bot - a task planning bot.
 package main
 
 import (
@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	// برای خواندن تایم‌زون‌ها (مثل Asia/Tehran) در محیط‌های بدون tzdata سیستمی.
+	// embed timezone data (e.g. Asia/Tehran) for hosts without system tzdata.
 	_ "time/tzdata"
 
 	"github.com/AliGhanizade/planix-telegram-bot/internal/app"

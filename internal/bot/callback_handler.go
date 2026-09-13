@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// onCallback کال‌بک‌های دکمه‌های شیشه‌ای را بین هندلرها پخش می‌کند.
+// onCallback routes inline button callbacks to their handlers.
 func (b *Bot) onCallback(ctx context.Context, q *models.CallbackQuery) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -40,7 +40,7 @@ func (b *Bot) onCallback(ctx context.Context, q *models.CallbackQuery) {
 	}
 }
 
-// cbTask کال‌بک‌های عملیات روی یک تسک (task:*) را پردازش می‌کند.
+// cbTask handles task:* callbacks.
 func (b *Bot) cbTask(ctx context.Context, q *models.CallbackQuery) {
 	parts := ui.SplitCallback(q.Data)
 	if len(parts) < 3 {
@@ -61,7 +61,7 @@ func (b *Bot) cbTask(ctx context.Context, q *models.CallbackQuery) {
 
 	switch parts[1] {
 	case "due":
-		// task:due:<id>:<preset>[:مبدأ]
+		// task:due:<id>:<preset>[:origin]
 		if len(parts) < 5 {
 			b.answer(ctx, q, "")
 			return
@@ -69,7 +69,7 @@ func (b *Bot) cbTask(ctx context.Context, q *models.CallbackQuery) {
 		b.cbTaskDue(ctx, q, parts[2], parts[3], chatID, messageID)
 
 	case "prio":
-		// task:prio:<id>:<level>[:مبدأ]
+		// task:prio:<id>:<level>[:origin]
 		if len(parts) < 5 {
 			b.answer(ctx, q, "")
 			return
@@ -77,7 +77,7 @@ func (b *Bot) cbTask(ctx context.Context, q *models.CallbackQuery) {
 		b.cbTaskPriority(ctx, q, parts[2], parts[3], chatID, messageID)
 
 	case "edit":
-		// task:edit:<what>:<id>[:مبدأ]
+		// task:edit:<what>:<id>[:origin]
 		if len(parts) < 4 {
 			b.answer(ctx, q, "")
 			return
@@ -86,7 +86,7 @@ func (b *Bot) cbTask(ctx context.Context, q *models.CallbackQuery) {
 
 	case "delete":
 		if parts[2] == "yes" {
-			// task:delete:yes:<id>[:مبدأ]
+			// task:delete:yes:<id>[:origin]
 			if len(parts) < 4 {
 				b.answer(ctx, q, "")
 				return
@@ -94,16 +94,16 @@ func (b *Bot) cbTask(ctx context.Context, q *models.CallbackQuery) {
 			b.cbTaskDeleteYes(ctx, q, u, parts[3], chatID, messageID)
 			return
 		}
-		// task:delete:<id>[:مبدأ]
+		// task:delete:<id>[:origin]
 		b.cbTaskDeleteAsk(ctx, q, parts[2], chatID, messageID)
 
 	default:
-		// عملیات‌های ساده: task:<action>:<id>[:مبدأ]
+		// simple actions: task:<action>:<id>[:origin]
 		b.cbTaskAction(ctx, q, u, parts[1], parts[2], chatID, messageID)
 	}
 }
 
-// cbTaskAction عملیات‌های ساده روی تسک: info، refresh، done و reopen.
+// cbTaskAction handles simple task actions: info, refresh, done and reopen.
 func (b *Bot) cbTaskAction(ctx context.Context, q *models.CallbackQuery, u *domain.User, action, rawID string, chatID int64, messageID int) {
 	id, err := uuid.Parse(rawID)
 	if err != nil {
@@ -155,7 +155,7 @@ func (b *Bot) cbTaskAction(ctx context.Context, q *models.CallbackQuery, u *doma
 	}
 }
 
-// refreshTaskView بسته به مبدأ، فهرست یا کارت را دوباره رندر می‌کند تا UI سینک بماند.
+// refreshTaskView re-renders the list or the card depending on origin to keep the ui in sync.
 func (b *Bot) refreshTaskView(ctx context.Context, userID uuid.UUID, chatID int64, messageID int, id uuid.UUID, origin ui.TaskOrigin) {
 	if origin.List {
 		if err := b.renderTaskList(ctx, chatID, messageID, userID, ui.ListFilter(origin.Filter), origin.Page); err != nil {
@@ -168,7 +168,7 @@ func (b *Bot) refreshTaskView(ctx context.Context, userID uuid.UUID, chatID int6
 	}
 }
 
-// cbTaskEdit شروع جریان‌های ویرایش (عنوان، توضیحات) و باز کردن انتخابگرها (موعد، اولویت).
+// cbTaskEdit starts edit flows (title, description) and opens pickers (due, priority).
 func (b *Bot) cbTaskEdit(ctx context.Context, q *models.CallbackQuery, u *domain.User, what, rawID string, chatID int64, messageID int) {
 	id, err := uuid.Parse(rawID)
 	if err != nil {
@@ -233,7 +233,7 @@ func (b *Bot) cbTaskEdit(ctx context.Context, q *models.CallbackQuery, u *domain
 	}
 }
 
-// cbTaskDeleteAsk نمایش تایید دو مرحله‌ای حذف.
+// cbTaskDeleteAsk shows the two step delete confirmation.
 func (b *Bot) cbTaskDeleteAsk(ctx context.Context, q *models.CallbackQuery, rawID string, chatID int64, messageID int) {
 	id, err := uuid.Parse(rawID)
 	if err != nil {
@@ -258,7 +258,7 @@ func (b *Bot) cbTaskDeleteAsk(ctx context.Context, q *models.CallbackQuery, rawI
 	}
 }
 
-// cbTaskDeleteYes حذف نهایی تسک بعد از تایید.
+// cbTaskDeleteYes deletes the task after confirmation.
 func (b *Bot) cbTaskDeleteYes(ctx context.Context, q *models.CallbackQuery, u *domain.User, rawID string, chatID int64, messageID int) {
 	id, err := uuid.Parse(rawID)
 	if err != nil {
@@ -289,7 +289,7 @@ func (b *Bot) cbTaskDeleteYes(ctx context.Context, q *models.CallbackQuery, u *d
 	}
 }
 
-// cbTaskDue ثبت موعد انتخابی از انتخابگر سریع.
+// cbTaskDue saves the due date picked from the quick picker.
 func (b *Bot) cbTaskDue(ctx context.Context, q *models.CallbackQuery, rawID, preset string, chatID int64, messageID int) {
 	id, err := uuid.Parse(rawID)
 	if err != nil {
@@ -338,7 +338,7 @@ func (b *Bot) cbTaskDue(ctx context.Context, q *models.CallbackQuery, rawID, pre
 	}
 }
 
-// cbTaskPriority ثبت اولویت انتخابی.
+// cbTaskPriority saves the picked priority.
 func (b *Bot) cbTaskPriority(ctx context.Context, q *models.CallbackQuery, rawID, level string, chatID int64, messageID int) {
 	id, err := uuid.Parse(rawID)
 	if err != nil {

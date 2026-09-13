@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- DTO های احراز هویت ----
+// ---- auth DTOs ----
 
 type loginRequestReq struct {
 	Username string `json:"username" binding:"required"`
@@ -37,7 +37,7 @@ type userResponse struct {
 	PendingTasks int64  `json:"pending_tasks"`
 }
 
-// ---- مسیرهای عمومی احراز هویت ----
+// ---- public auth routes ----
 
 func (h *Handlers) registerAuth(public *gin.RouterGroup) {
 	g := public.Group("/auth")
@@ -47,7 +47,7 @@ func (h *Handlers) registerAuth(public *gin.RouterGroup) {
 	}
 }
 
-// requestLogin جریان وب‌محور: کاربر یوزرنیم می‌دهد، بات کد را برایش می‌فرستد.
+// requestLogin is the web initiated flow: user gives a username, the bot dms the code.
 func (h *Handlers) requestLogin(c *gin.Context) {
 	var req loginRequestReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -63,7 +63,7 @@ func (h *Handlers) requestLogin(c *gin.Context) {
 		return
 	}
 
-	// تحویل کد به کاربر از طریق بات.
+	// deliver the code to the user through the bot.
 	if err := h.telegram.SendLoginCode(c.Request.Context(), user.TelegramID, code.Code, 10); err != nil {
 		requestLoggerOf(c).Error("send login code failed", zapErr(err))
 		fail(c, http.StatusInternalServerError, "ارسال کد توسط بات ناموفق بود")
@@ -76,7 +76,7 @@ func (h *Handlers) requestLogin(c *gin.Context) {
 	})
 }
 
-// verifyLogin تایید کد و صدور نشست.
+// verifyLogin checks the code and issues a session.
 func (h *Handlers) verifyLogin(c *gin.Context) {
 	var req loginVerifyReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -103,7 +103,7 @@ func (h *Handlers) verifyLogin(c *gin.Context) {
 	})
 }
 
-// ---- مسیرهای احراز هویت‌شده ----
+// ---- authed routes ----
 
 func (h *Handlers) registerAuthed(authed *gin.RouterGroup) {
 	g := authed.Group("/auth")
@@ -113,7 +113,7 @@ func (h *Handlers) registerAuthed(authed *gin.RouterGroup) {
 	}
 }
 
-// me اطلاعات کاربر لاگین‌شده.
+// me returns the logged in user.
 func (h *Handlers) me(c *gin.Context) {
 	user := currentUser(c)
 
@@ -125,7 +125,7 @@ func (h *Handlers) me(c *gin.Context) {
 	c.JSON(http.StatusOK, toUserResponse(u, st.Pending))
 }
 
-// logout خروج از حساب: توکن باطل می‌شود.
+// logout revokes the token.
 func (h *Handlers) logout(c *gin.Context) {
 	token := bearerToken(c)
 	if err := h.auth.Logout(c.Request.Context(), token); err != nil {
@@ -135,7 +135,7 @@ func (h *Handlers) logout(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "خروج انجام شد"})
 }
 
-// toUserResponse مدل دامنه را به DTO پاسخ تبدیل می‌کند.
+// toUserResponse converts the domain model into the user DTO.
 func toUserResponse(u *domain.User, pending int64) userResponse {
 	return userResponse{
 		ID:           u.ID.String(),

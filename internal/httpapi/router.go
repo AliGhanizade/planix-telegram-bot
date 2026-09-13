@@ -1,4 +1,4 @@
-// Package httpapi رابط HTTP برنامه (وب‌هوک تلگرام + API پنل وب) را می‌سازد.
+// Package httpapi builds the http surface (telegram webhook + web panel api).
 package httpapi
 
 import (
@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// NewRouter روتر Gin را با میدل‌ورها و مسیرها می‌سازد.
+// NewRouter builds the gin router with middlewares and routes.
 func NewRouter(
 	cfg config.Config,
 	log *zap.Logger,
@@ -27,7 +27,7 @@ func NewRouter(
 	h := NewHandlers(cfg, log, telegram, auth, profiles, tasks)
 	h.register(r)
 
-	// API پنل وب: مسیرهای عمومی با محدودیت نرخ + مسیرهای احراز هویت‌شده.
+	// web panel api: public routes with rate limiting plus authed routes.
 	public := r.Group("/api", RateLimit(30))
 	authed := r.Group("/api", Auth(auth))
 	h.registerAuth(public)

@@ -6,7 +6,7 @@ import (
 )
 
 func TestDueFromPreset(t *testing.T) {
-	// یک لحظه‌ی مرجع ثابت برای تست.
+	// a fixed reference point for tests.
 	now := time.Date(2026, 9, 13, 15, 30, 0, 0, time.UTC)
 	loc := time.UTC
 

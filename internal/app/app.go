@@ -1,4 +1,4 @@
-// Package app اجزای برنامه را راه‌اندازی و به هم وصل می‌کند.
+// Package app wires the application components together.
 package app
 
 import (
@@ -17,7 +17,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// App نگهدارنده‌ی اجزای اجرایی برنامه است.
+// App holds the running parts of the application.
 type App struct {
 	Config config.Config
 	Logger *zap.Logger
@@ -27,7 +27,7 @@ type App struct {
 	stop   context.CancelFunc
 }
 
-// New تنظیمات، لاگر، دیتابیس، بات، زمان‌بند گزارش روزانه و یادآوری‌ها را راه می‌اندازد.
+// New sets up config, logger, database, bot and the cron scheduler.
 func New() (*App, error) {
 	c, err := config.Load()
 	if err != nil {
@@ -41,7 +41,7 @@ func New() (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
-	// سرویس‌های مشترک بات و پنل وب.
+	// services shared by the bot and the web panel.
 	authSvc := service.NewAuthService(db, log)
 	profileSvc := service.NewUserService(db, log)
 
@@ -50,11 +50,11 @@ func New() (*App, error) {
 		return nil, fmt.Errorf("create telegram bot: %w", err)
 	}
 
-	// بات تا لغو شدن کانتکست آپدیت‌ها را دریافت می‌کند.
+	// the bot receives updates until the context is cancelled.
 	ctx, cancel := context.WithCancel(context.Background())
 	go telegram.Run(ctx)
 
-	// زمان‌بند: گزارش روزانه و یادآوری موعد تسک‌ها.
+	// scheduler: daily report and due date reminders.
 	scheduler := cron.New(cron.WithSeconds())
 	if _, err = scheduler.AddFunc(c.DailyReportCron, func() {
 		telegram.SendDailyReports(ctx)
@@ -80,7 +80,7 @@ func New() (*App, error) {
 	}, nil
 }
 
-// Stop زمان‌بند و حلقه‌ی دریافت آپدیت‌ها را متوقف می‌کند.
+// Stop stops the scheduler and the update loop.
 func (a *App) Stop() {
 	a.stop()
 	a.cron.Stop()

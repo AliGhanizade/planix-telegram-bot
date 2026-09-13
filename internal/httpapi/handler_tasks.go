@@ -13,10 +13,10 @@ import (
 	"github.com/google/uuid"
 )
 
-// errInvalidStatus خطای وضعیت نامعتبر تسک.
+// errInvalidStatus is returned for an unknown task status.
 var errInvalidStatus = errors.New("invalid status")
 
-// ---- DTO های تسک ----
+// ---- task DTOs ----
 
 type taskResponse struct {
 	ID          string     `json:"id"`
@@ -54,10 +54,10 @@ type taskListResponse struct {
 	PageSize int            `json:"page_size"`
 }
 
-// webPageSize اندازه صفحه‌ی API — جدا از رابط کاربری بات.
+// webPageSize is the api page size, separate from the bot ui.
 const webPageSize = 20
 
-// registerTasks مسیرهای تسک برای پنل وب (همه احراز هویت‌شده).
+// registerTasks registers web task routes (all authed).
 func (h *Handlers) registerTasks(authed *gin.RouterGroup) {
 	g := authed.Group("/tasks")
 	{
@@ -71,7 +71,7 @@ func (h *Handlers) registerTasks(authed *gin.RouterGroup) {
 	}
 }
 
-// toTaskResponse مدل دامنه را به DTO تسک تبدیل می‌کند.
+// toTaskResponse converts the domain model into the task DTO.
 func toTaskResponse(t *domain.Task) taskResponse {
 	return taskResponse{
 		ID:          t.ID.String(),
@@ -102,7 +102,7 @@ func (h *Handlers) listTasks(c *gin.Context) {
 		page = 1
 	}
 
-	// جستجو: q
+	// search: q
 	if q := c.Query("q"); q != "" {
 		tasks, err := h.tasks.Search(c.Request.Context(), user.ID, q, 50)
 		if err != nil {
@@ -162,7 +162,7 @@ func (h *Handlers) createTask(c *gin.Context) {
 	c.JSON(http.StatusCreated, toTaskResponse(task))
 }
 
-// loadAccessibleTask تسک را واکشی و دسترسی کاربر را بررسی می‌کند.
+// loadAccessibleTask fetches a task and checks user access.
 func (h *Handlers) loadAccessibleTask(c *gin.Context) (*domain.Task, bool) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -255,7 +255,7 @@ func (h *Handlers) updateTask(c *gin.Context) {
 	c.JSON(http.StatusOK, toTaskResponse(updated))
 }
 
-// applyStatus وضعیت تسک را با سرویس تغییر می‌دهد.
+// applyStatus changes the task status through the service.
 func (h *Handlers) applyStatus(ctx context.Context, taskID uuid.UUID, status string) (*domain.Task, error) {
 	switch status {
 	case "completed":

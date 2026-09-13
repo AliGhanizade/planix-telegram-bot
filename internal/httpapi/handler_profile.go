@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ---- DTO های پروفایل ----
+// ---- profile DTOs ----
 
 type profileResponse struct {
 	ID          string  `json:"id"`
@@ -28,7 +28,7 @@ type updateProfileReq struct {
 	Timezone  *string `json:"timezone"`
 }
 
-// registerProfile مسیرهای پروفایل و آمار (احراز هویت‌شده).
+// registerProfile registers profile and stats routes (authed).
 func (h *Handlers) registerProfile(authed *gin.RouterGroup) {
 	g := authed.Group("/profile")
 	{

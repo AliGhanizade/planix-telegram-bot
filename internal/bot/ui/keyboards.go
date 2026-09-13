@@ -7,24 +7,24 @@ import (
 	"github.com/go-telegram/bot/models"
 )
 
-// استایل‌های رنگی دکمه‌ها (Bot API 9.4+) — رنگ نهایی به تم کلاینت بستگی دارد.
+// button styles (Bot API 9.4+) - final colors depend on the client theme.
 const (
 	StylePrimary = "primary" // آبی
 	StyleSuccess = "success" // سبز
 	StyleDanger  = "danger"  // قرمز
 )
 
-// kb دکمه‌ی کیبورد پاسخ (پایین صفحه) می‌سازد.
+// kb builds a reply keyboard button.
 func kb(text, style string) models.KeyboardButton {
 	return models.KeyboardButton{Text: text, Style: style}
 }
 
-// ib دکمه‌ی شیشه‌ای داخل پیام می‌سازد.
+// ib builds an inline button.
 func ib(text, data, style string) models.InlineKeyboardButton {
 	return models.InlineKeyboardButton{Text: text, CallbackData: data, Style: style}
 }
 
-// MainKeyboard کیبورد اصلی فارسی بات با دکمه‌های رنگی است.
+// MainKeyboard is the main colored reply keyboard.
 func MainKeyboard() models.ReplyKeyboardMarkup {
 	return models.ReplyKeyboardMarkup{
 		Keyboard: [][]models.KeyboardButton{
@@ -38,7 +38,7 @@ func MainKeyboard() models.ReplyKeyboardMarkup {
 	}
 }
 
-// MenuInlineKeyboard منوی داخل پیام برای ناوبری درجا.
+// MenuInlineKeyboard is the inline menu for in place navigation.
 func MenuInlineKeyboard() models.InlineKeyboardMarkup {
 	return models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{
@@ -50,7 +50,7 @@ func MenuInlineKeyboard() models.InlineKeyboardMarkup {
 	}
 }
 
-// BackKeyboard فقط دکمه‌ی بازگشت به منو.
+// BackKeyboard is a single back-to-menu button.
 func BackKeyboard() models.InlineKeyboardMarkup {
 	return models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{
@@ -59,7 +59,7 @@ func BackKeyboard() models.InlineKeyboardMarkup {
 	}
 }
 
-// CancelInlineKeyboard دکمه‌ی لغو جریان جاری.
+// CancelInlineKeyboard cancels the current flow.
 func CancelInlineKeyboard() models.InlineKeyboardMarkup {
 	return models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{
@@ -68,7 +68,7 @@ func CancelInlineKeyboard() models.InlineKeyboardMarkup {
 	}
 }
 
-// TaskListKeyboard فهرست تسک‌ها با دکمه‌ی انجام/جزئیات، تب‌های فیلتر و صفحه‌بندی.
+// TaskListKeyboard builds the task list with done/details buttons, filter tabs and pagination.
 func TaskListKeyboard(tasks []domain.Task, f ListFilter, page, pages int) models.InlineKeyboardMarkup {
 	var rows [][]models.InlineKeyboardButton
 
@@ -80,14 +80,14 @@ func TaskListKeyboard(tasks []domain.Task, f ListFilter, page, pages int) models
 		})
 	}
 
-	// تب‌های فیلتر — تب فعال آبی می‌شود
+	// filter tabs - the active tab is highlighted
 	rows = append(rows, []models.InlineKeyboardButton{
 		filterButton("⏳ باز", FilterPending, f),
 		filterButton("✅ انجام‌شده", FilterCompleted, f),
 		filterButton("🗂 همه", FilterAll, f),
 	})
 
-	// صفحه‌بندی
+	// pagination
 	if pages > 1 {
 		var nav []models.InlineKeyboardButton
 		if page > 1 {
@@ -115,7 +115,7 @@ func filterButton(label string, f, active ListFilter) models.InlineKeyboardButto
 	return ib(label, data, "")
 }
 
-// TaskCardKeyboard کارت تسک را با دکمه‌های مدیریتی رنگی می‌سازد.
+// TaskCardKeyboard builds the colored task management card.
 func TaskCardKeyboard(task *domain.Task, o TaskOrigin) models.InlineKeyboardMarkup {
 	var rows [][]models.InlineKeyboardButton
 
@@ -148,7 +148,7 @@ func TaskCardKeyboard(task *domain.Task, o TaskOrigin) models.InlineKeyboardMark
 	return models.InlineKeyboardMarkup{InlineKeyboard: rows}
 }
 
-// DuePickerKeyboard انتخاب سریع موعد تسک.
+// DuePickerKeyboard offers quick due date presets.
 func DuePickerKeyboard(task *domain.Task, o TaskOrigin) models.InlineKeyboardMarkup {
 	id := task.ID
 	due := func(preset string) string {
@@ -165,7 +165,7 @@ func DuePickerKeyboard(task *domain.Task, o TaskOrigin) models.InlineKeyboardMar
 	}
 }
 
-// PriorityPickerKeyboard انتخاب اولویت تسک.
+// PriorityPickerKeyboard lets the user pick a task priority.
 func PriorityPickerKeyboard(task *domain.Task, o TaskOrigin) models.InlineKeyboardMarkup {
 	id := task.ID
 	prio := func(level string) string {
@@ -182,7 +182,7 @@ func PriorityPickerKeyboard(task *domain.Task, o TaskOrigin) models.InlineKeyboa
 	}
 }
 
-// DeleteConfirmKeyboard تایید دو مرحله‌ای حذف تسک.
+// DeleteConfirmKeyboard is the two step delete confirmation.
 func DeleteConfirmKeyboard(task *domain.Task, o TaskOrigin) models.InlineKeyboardMarkup {
 	id := task.ID
 	return models.InlineKeyboardMarkup{
@@ -195,7 +195,7 @@ func DeleteConfirmKeyboard(task *domain.Task, o TaskOrigin) models.InlineKeyboar
 	}
 }
 
-// SuggestFriendInlineKeyboard فهرست کاربرانی که به آن‌ها تسک داده‌ای را پیشنهاد می‌دهد.
+// SuggestFriendInlineKeyboard suggests users you assigned tasks to.
 func SuggestFriendInlineKeyboard(users []domain.User) models.InlineKeyboardMarkup {
 	var rows [][]models.InlineKeyboardButton
 	for _, user := range users {
@@ -217,7 +217,7 @@ func SuggestFriendInlineKeyboard(users []domain.User) models.InlineKeyboardMarku
 	return models.InlineKeyboardMarkup{InlineKeyboard: rows}
 }
 
-// SearchResultsKeyboard نتیجه‌های جستجو با دکمه‌ی جزئیات هر تسک.
+// SearchResultsKeyboard lists search results with a details button.
 func SearchResultsKeyboard(tasks []domain.Task) models.InlineKeyboardMarkup {
 	var rows [][]models.InlineKeyboardButton
 	for _, t := range tasks {
@@ -231,7 +231,7 @@ func SearchResultsKeyboard(tasks []domain.Task) models.InlineKeyboardMarkup {
 	return models.InlineKeyboardMarkup{InlineKeyboard: rows}
 }
 
-// SettingsInlineKeyboard منوی تنظیمات کاربر.
+// SettingsInlineKeyboard is the user settings menu.
 func SettingsInlineKeyboard(dailyReport bool) models.InlineKeyboardMarkup {
 	label := "گزارش روزانه: خاموش ❌"
 	style := ""
@@ -249,7 +249,7 @@ func SettingsInlineKeyboard(dailyReport bool) models.InlineKeyboardMarkup {
 	}
 }
 
-// ProfileEditInlineKeyboard انتخاب فیلد برای ویرایش پروفایل.
+// ProfileEditInlineKeyboard picks a profile field to edit.
 func ProfileEditInlineKeyboard() models.InlineKeyboardMarkup {
 	return models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{
@@ -261,7 +261,7 @@ func ProfileEditInlineKeyboard() models.InlineKeyboardMarkup {
 	}
 }
 
-// TodayInlineKeyboard دکمه‌ی میانبر بعد از ثبت تسک جدید.
+// TodayInlineKeyboard is the shortcut shown after creating a task.
 func TodayInlineKeyboard() models.InlineKeyboardMarkup {
 	return models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{

@@ -1,4 +1,4 @@
-// Package service قواعد کسب‌وکار برنامه را پیاده‌سازی می‌کند.
+// Package service implements the business rules.
 package service
 
 import (
@@ -17,17 +17,17 @@ import (
 	"gorm.io/gorm"
 )
 
-// ثابت‌های احراز هویت پنل وب.
+// web panel auth constants.
 const (
-	// CodeTTL مدت اعتبار کد یک‌بارمصرف.
+	// CodeTTL is how long a login code stays valid.
 	CodeTTL = 10 * time.Minute
-	// SessionTTL مدت اعتبار نشست وب؛ با فعالیت کاربر به‌صورت لغزان تمدید می‌شود.
+	// SessionTTL is the web session lifetime; it slides forward on activity.
 	SessionTTL = 30 * 24 * time.Hour
-	// SessionExtendWindow اگر تا این مدت به انقضای نشست مانده باشد، تمدید می‌شود.
+	// SessionExtendWindow renews the session when expiry is closer than this.
 	SessionExtendWindow = 7 * 24 * time.Hour
 )
 
-// AuthService صدور و تایید کدهای ورود و مدیریت نشست‌های پنل وب.
+// AuthService issues and verifies login codes and manages web sessions.
 type AuthService struct {
 	db       *gorm.DB
 	users    *repository.UserRepository
@@ -36,7 +36,7 @@ type AuthService struct {
 	log      *zap.Logger
 }
 
-// NewAuthService سرویس احراز هویت را می‌سازد.
+// NewAuthService builds the auth service.
 func NewAuthService(db *gorm.DB, log *zap.Logger) *AuthService {
 	return &AuthService{
 		db:       db,
@@ -47,8 +47,8 @@ func NewAuthService(db *gorm.DB, log *zap.Logger) *AuthService {
 	}
 }
 
-// IssueLoginCode برای کاربر کد ورود صادر می‌کند و کدهای قبلی او را باطل می‌کند.
-// source مشخص می‌کند کد از داخل بات صادر شده یا از سمت پنل وب درخواست شده.
+// IssueLoginCode issues a login code and voids previous ones.
+// source says whether the code was issued in the bot or requested from the web.
 func (s *AuthService) IssueLoginCode(ctx context.Context, userID uuid.UUID, source string) (*domain.LoginCode, error) {
 	code, err := generateCode()
 	if err != nil {
@@ -62,8 +62,8 @@ func (s *AuthService) IssueLoginCode(ctx context.Context, userID uuid.UUID, sour
 	return lc, nil
 }
 
-// RequestLoginByUsername از سمت پنل وب: با یوزرنیم تلگرام کاربر را پیدا و کد صادر می‌کند.
-// کاربر باید قبلاً حداقل یک‌بار با بات استارت کرده باشد.
+// RequestLoginByUsername finds a user by telegram username and issues a code (web initiated).
+// the user must have started the bot at least once.
 func (s *AuthService) RequestLoginByUsername(ctx context.Context, username string) (*domain.User, *domain.LoginCode, error) {
 	user, err := s.users.GetByUsername(ctx, username)
 	if err != nil {
@@ -79,7 +79,7 @@ func (s *AuthService) RequestLoginByUsername(ctx context.Context, username strin
 	return user, code, nil
 }
 
-// VerifyLoginCode کد را تایید و نشست وب ۳۰ روزه صادر می‌کند.
+// VerifyLoginCode verifies the code and issues a 30 day web session.
 func (s *AuthService) VerifyLoginCode(ctx context.Context, code, userAgent string) (*domain.User, *domain.WebSession, error) {
 	lc, err := s.codes.FindActive(ctx, code)
 	if err != nil {
@@ -102,8 +102,8 @@ func (s *AuthService) VerifyLoginCode(ctx context.Context, code, userAgent strin
 	return user, session, nil
 }
 
-// ValidateSession توکن را بررسی می‌کند؛ کاربر را برمی‌گرداند و در صورت نزدیک بودن
-// انقضا، نشست را برای ۳۰ روز دیگر تمدید می‌کند تا کاربر فعال دائمی لاگین نمانَد بیرون.
+// ValidateSession checks the token, returns the user and extends the session
+// close to expiry, extending it by another 30 days so active users stay logged in.
 func (s *AuthService) ValidateSession(ctx context.Context, token string) (*domain.User, error) {
 	session, err := s.sessions.GetByToken(ctx, token)
 	if err != nil {
@@ -123,7 +123,7 @@ func (s *AuthService) ValidateSession(ctx context.Context, token string) (*domai
 	return user, nil
 }
 
-// Logout توکن را باطل می‌کند.
+// Logout revokes a token.
 func (s *AuthService) Logout(ctx context.Context, token string) error {
 	if err := s.sessions.Delete(ctx, token); err != nil {
 		return err
@@ -132,7 +132,7 @@ func (s *AuthService) Logout(ctx context.Context, token string) error {
 	return nil
 }
 
-// createSession توکن تصادفی ۲۵۶ بیتی و نشست جدید می‌سازد.
+// createSession generates a random 256 bit token and a new session.
 func (s *AuthService) createSession(ctx context.Context, userID uuid.UUID, userAgent string) (*domain.WebSession, error) {
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
@@ -152,7 +152,7 @@ func (s *AuthService) createSession(ctx context.Context, userID uuid.UUID, userA
 	return session, nil
 }
 
-// audit رویدادهای احراز هویت را در جدول ActivityLog ثبت می‌کند.
+// audit writes auth events into ActivityLog.
 func (s *AuthService) audit(ctx context.Context, userID *uuid.UUID, action string, entityID uuid.UUID, meta map[string]string) {
 	raw := "{}"
 	if meta != nil {
@@ -173,7 +173,7 @@ func (s *AuthService) audit(ctx context.Context, userID *uuid.UUID, action strin
 	}
 }
 
-// generateCode کد ۶ رقمی تصادفی امن تولید می‌کند.
+// generateCode produces a random 6 digit code.
 func generateCode() (string, error) {
 	n, err := rand.Int(rand.Reader, big.NewInt(1000000))
 	if err != nil {

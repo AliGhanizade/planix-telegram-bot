@@ -1,4 +1,4 @@
-// Package service قواعد کسب‌وکار تسک‌ها و ثبت رویدادها را پیاده‌سازی می‌کند.
+// Package service implements task business rules and event logging.
 package service
 
 import (
@@ -14,16 +14,16 @@ import (
 	"gorm.io/gorm"
 )
 
-// TaskService لایه‌ی سرویس تسک‌ها بین بات و مخازن داده است.
+// TaskService is the task service layer between bot and repositories.
 type TaskService struct {
 	db    *gorm.DB
 	tasks *repository.TaskRepository
 }
 
-// NewTask سرویس تسک را می‌سازد.
+// NewTask builds the task service.
 func NewTask(db *gorm.DB) *TaskService { return &TaskService{db: db, tasks: repository.NewTask(db)} }
 
-// Create تسک جدید ثبت می‌کند؛ اگر موعدی مشخص نشده باشد، مهلت پیش‌فرض ۲۰ ساعت بعد در نظر گرفته می‌شود.
+// Create saves a new task; when no due date is given it defaults to 20 hours later.
 func (s *TaskService) Create(ctx context.Context, task *domain.Task) error {
 	if task.Title == "" {
 		return fmt.Errorf("task title is required")
@@ -38,7 +38,7 @@ func (s *TaskService) Create(ctx context.Context, task *domain.Task) error {
 	return s.log(ctx, &task.AssigneeID, "task", task.ID, "created", map[string]string{"title": task.Title})
 }
 
-// Complete تسک را انجام‌شده علامت می‌زند و نسخه‌ی به‌روزشده را برمی‌گرداند.
+// Complete marks a task done and returns the updated copy.
 func (s *TaskService) Complete(ctx context.Context, taskID uuid.UUID) (*domain.Task, error) {
 	task, err := s.tasks.GetByID(ctx, taskID)
 	if err != nil {
@@ -57,12 +57,12 @@ func (s *TaskService) Complete(ctx context.Context, taskID uuid.UUID) (*domain.T
 	return task, nil
 }
 
-// Today تسک‌های باز کاربر را برمی‌گرداند.
+// Today returns the open tasks of a user.
 func (s *TaskService) Today(ctx context.Context, userID uuid.UUID) ([]domain.Task, error) {
 	return s.tasks.ListPendingByAssignee(ctx, userID)
 }
 
-// CountOpen تعداد تسک‌های باز کاربر را برمی‌گرداند.
+// CountOpen counts the open tasks of a user.
 func (s *TaskService) CountOpen(ctx context.Context, userID uuid.UUID) (int64, error) {
 	var n int64
 	err := s.db.WithContext(ctx).Model(&domain.Task{}).
@@ -71,18 +71,18 @@ func (s *TaskService) CountOpen(ctx context.Context, userID uuid.UUID) (int64, e
 	return n, err
 }
 
-// log رویداد را در جدول ActivityLog ثبت می‌کند.
+// log writes an event into ActivityLog.
 func (s *TaskService) log(ctx context.Context, userID *uuid.UUID, kind string, id uuid.UUID, action string, meta any) error {
 	raw, _ := json.Marshal(meta)
 	return s.db.WithContext(ctx).Create(&domain.ActivityLog{UserID: userID, EntityType: kind, EntityID: id, Action: action, Metadata: string(raw), OccurredAt: time.Now()}).Error
 }
 
-// GetByID یک تسک را با شناسه برمی‌گرداند.
+// GetByID returns a task by id.
 func (s *TaskService) GetByID(ctx context.Context, taskID uuid.UUID) (*domain.Task, error) {
 	return s.tasks.GetByID(ctx, taskID)
 }
 
-// ListByOwnerAndAssignee تسک‌هایی که مالک به کاربر داده است را فهرست می‌کند.
+// ListByOwnerAndAssignee lists tasks an owner gave to a user.
 func (s *TaskService) ListByOwnerAndAssignee(ctx context.Context, ownerID, assigneeID uuid.UUID) ([]domain.Task, error) {
 	var tasks []domain.Task
 	if err := s.db.WithContext(ctx).Where("owner_id = ? AND assignee_id = ?", ownerID, assigneeID).Find(&tasks).Error; err != nil {
@@ -91,7 +91,7 @@ func (s *TaskService) ListByOwnerAndAssignee(ctx context.Context, ownerID, assig
 	return tasks, nil
 }
 
-// CreateForOtherUser تسک را به‌جای کاربر دیگر ثبت و رویدادش را لاگ می‌کند.
+// CreateForOtherUser saves a task on behalf of another user and logs the event.
 func (s *TaskService) CreateForOtherUser(ctx context.Context, t *domain.Task) error {
 	if err := s.tasks.Create(ctx, t); err != nil {
 		return err
@@ -100,7 +100,7 @@ func (s *TaskService) CreateForOtherUser(ctx context.Context, t *domain.Task) er
 	return nil
 }
 
-// Delete تسک را حذف و رویدادش را لاگ می‌کند.
+// Delete removes a task and logs the event.
 func (s *TaskService) Delete(ctx context.Context, taskID uuid.UUID) error {
 	task, err := s.GetByID(ctx, taskID)
 	if err != nil {
@@ -112,7 +112,7 @@ func (s *TaskService) Delete(ctx context.Context, taskID uuid.UUID) error {
 	return s.log(ctx, &task.OwnerID, "task", task.ID, "deleted", nil)
 }
 
-// UpdateTitle عنوان تسک را تغییر می‌دهد.
+// UpdateTitle changes the task title.
 func (s *TaskService) UpdateTitle(ctx context.Context, taskID uuid.UUID, title string) error {
 	if title == "" {
 		return fmt.Errorf("title is required")
@@ -127,7 +127,7 @@ func (s *TaskService) UpdateTitle(ctx context.Context, taskID uuid.UUID, title s
 	return s.log(ctx, &task.OwnerID, "task", task.ID, "updated_title", map[string]string{"title": title})
 }
 
-// UpdateDescription توضیحات تسک را تغییر می‌دهد.
+// UpdateDescription changes the task description.
 func (s *TaskService) UpdateDescription(ctx context.Context, taskID uuid.UUID, description string) error {
 	task, err := s.GetByID(ctx, taskID)
 	if err != nil {
@@ -139,14 +139,14 @@ func (s *TaskService) UpdateDescription(ctx context.Context, taskID uuid.UUID, d
 	return s.log(ctx, &task.OwnerID, "task", task.ID, "updated_description", nil)
 }
 
-// TaskStats آمار تسک‌های یک کاربر است.
+// TaskStats holds the task stats of a user.
 type TaskStats struct {
 	Pending   int64
 	Completed int64
 	Cancelled int64
 }
 
-// CompletionRate درصد پیشرفت کاربر را برمی‌گرداند.
+// CompletionRate returns the user progress percentage.
 func (t TaskStats) CompletionRate() float64 {
 	total := t.Pending + t.Completed + t.Cancelled
 	if total == 0 {
@@ -155,7 +155,7 @@ func (t TaskStats) CompletionRate() float64 {
 	return float64(t.Completed) / float64(total) * 100
 }
 
-// Reopen تسکِ انجام‌شده را دوباره باز می‌کند.
+// Reopen reopens a completed task.
 func (s *TaskService) Reopen(ctx context.Context, taskID uuid.UUID) (*domain.Task, error) {
 	task, err := s.tasks.GetByID(ctx, taskID)
 	if err != nil {
@@ -174,7 +174,7 @@ func (s *TaskService) Reopen(ctx context.Context, taskID uuid.UUID) (*domain.Tas
 	return task, nil
 }
 
-// UpdatePriority اولویت تسک را تغییر می‌دهد.
+// UpdatePriority changes the task priority.
 func (s *TaskService) UpdatePriority(ctx context.Context, taskID uuid.UUID, priority string) error {
 	switch priority {
 	case "low", "normal", "high", "urgent":
@@ -191,7 +191,7 @@ func (s *TaskService) UpdatePriority(ctx context.Context, taskID uuid.UUID, prio
 	return s.log(ctx, &task.OwnerID, "task", task.ID, "updated_priority", map[string]string{"priority": priority})
 }
 
-// UpdateDueAt موعد تسک را تغییر می‌دهد؛ nil یعنی حذف موعد.
+// UpdateDueAt changes the task due date; nil clears it.
 func (s *TaskService) UpdateDueAt(ctx context.Context, taskID uuid.UUID, due *time.Time) error {
 	task, err := s.GetByID(ctx, taskID)
 	if err != nil {
@@ -200,13 +200,13 @@ func (s *TaskService) UpdateDueAt(ctx context.Context, taskID uuid.UUID, due *ti
 	if err := s.tasks.UpdateDueAt(ctx, taskID, due); err != nil {
 		return err
 	}
-	// با تغییر موعد، یادآوری قبلی بی‌معنا می‌شود.
+	// changing the due date voids an earlier reminder.
 	_ = s.db.WithContext(ctx).Model(&domain.Task{}).Where("id = ?", taskID).Update("reminded_at", nil).Error
 	return s.log(ctx, &task.OwnerID, "task", task.ID, "updated_due", nil)
 }
 
-// ListFiltered تسک‌های کاربر را با فیلتر وضعیت و صفحه‌بندی برمی‌گرداند.
-// filter می‌تواند pending، completed یا all باشد.
+// ListFiltered returns user tasks with status filter and pagination.
+// filter is one of pending, completed or all.
 func (s *TaskService) ListFiltered(ctx context.Context, userID uuid.UUID, filter string, page, size int) ([]domain.Task, int64, error) {
 	status := ""
 	switch filter {
@@ -226,7 +226,7 @@ func (s *TaskService) ListFiltered(ctx context.Context, userID uuid.UUID, filter
 	return tasks, total, err
 }
 
-// Search تسک‌های کاربر را با جستجوی عنوان برمی‌گرداند.
+// Search returns user tasks matching a title query.
 func (s *TaskService) Search(ctx context.Context, userID uuid.UUID, query string, limit int) ([]domain.Task, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
@@ -235,7 +235,7 @@ func (s *TaskService) Search(ctx context.Context, userID uuid.UUID, query string
 	return s.tasks.SearchByTitle(ctx, userID, query, limit)
 }
 
-// Stats آمار تسک‌های کاربر را برمی‌گرداند.
+// Stats returns the task stats of a user.
 func (s *TaskService) Stats(ctx context.Context, userID uuid.UUID) (*TaskStats, error) {
 	st := &TaskStats{}
 	var err error
@@ -251,17 +251,17 @@ func (s *TaskService) Stats(ctx context.Context, userID uuid.UUID) (*TaskStats, 
 	return st, nil
 }
 
-// DueSoon تسک‌هایی که موعدشان نزدیک است و یادآوری نشده‌اند را برمی‌گرداند.
+// DueSoon returns tasks due soon that have not been reminded yet.
 func (s *TaskService) DueSoon(ctx context.Context, from, to time.Time) ([]domain.Task, error) {
 	return s.tasks.ListDueSoon(ctx, from, to)
 }
 
-// MarkReminded ثبت می‌کند که برای تسک یادآوری فرستاده شده است.
+// MarkReminded marks that a reminder was sent for a task.
 func (s *TaskService) MarkReminded(ctx context.Context, taskID uuid.UUID, at time.Time) error {
 	return s.tasks.MarkReminded(ctx, taskID, at)
 }
 
-// Cancel تسک را لغو می‌کند.
+// Cancel marks a task as cancelled.
 func (s *TaskService) Cancel(ctx context.Context, taskID uuid.UUID) error {
 	task, err := s.GetByID(ctx, taskID)
 	if err != nil {

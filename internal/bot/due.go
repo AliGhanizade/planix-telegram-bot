@@ -4,8 +4,8 @@ import (
 	"time"
 )
 
-// dueFromPreset زمان موعد را بر اساس انتخاب سریع کاربر محاسبه می‌کند.
-// خروجی دوم یعنی پریست شناخته‌شده است.
+// dueFromPreset computes a due date from a quick preset.
+// the second return value says whether the preset is known.
 func dueFromPreset(preset string, now time.Time, loc *time.Location) (time.Time, bool) {
 	local := now.In(loc)
 	switch preset {
@@ -25,7 +25,7 @@ func dueFromPreset(preset string, now time.Time, loc *time.Location) (time.Time,
 	}
 }
 
-// userLocation تایم‌زون کاربر را برمی‌گرداند؛ در خطا UTC.
+// userLocation returns the user timezone, falling back to UTC.
 func userLocation(tz string) *time.Location {
 	if loc, err := time.LoadLocation(tz); err == nil {
 		return loc

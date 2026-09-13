@@ -11,12 +11,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// showMenu منوی اصلی را در پیام موجود نشان می‌دهد یا پیام تازه می‌فرستد.
+// showMenu shows the main menu in the existing message or sends a new one.
 func (b *Bot) showMenu(ctx context.Context, chatID int64, messageID int) error {
 	return b.render(ctx, chatID, messageID, ui.MenuText, ui.MenuInlineKeyboard())
 }
 
-// cbNav کال‌بک‌های دکمه‌های nav:* (ناوبری منو) را پردازش می‌کند.
+// cbNav handles nav:* callbacks (menu navigation).
 func (b *Bot) cbNav(ctx context.Context, q *models.CallbackQuery) {
 	data := q.Data
 	chatID, messageID, ok := cbOrigin(q)
@@ -83,7 +83,7 @@ func (b *Bot) cbNav(ctx context.Context, q *models.CallbackQuery) {
 	}
 }
 
-// cbState لغو جریان جاری از دکمه‌ی «لغو».
+// cbState cancels the current flow from the cancel button.
 func (b *Bot) cbState(ctx context.Context, q *models.CallbackQuery) {
 	u, err := b.upsertUser(ctx, q.From)
 	if err != nil {
@@ -104,7 +104,7 @@ func (b *Bot) cbState(ctx context.Context, q *models.CallbackQuery) {
 	}
 }
 
-// cbUserPick انتخاب کاربر هدف از کیبورد پیشنهادی و نمایش وضعیت واگذاری‌ها.
+// cbUserPick picks a target user from suggestions and shows delegated status.
 func (b *Bot) cbUserPick(ctx context.Context, q *models.CallbackQuery) {
 	const prefix = "user:filter:fr:"
 	if len(q.Data) <= len(prefix) {
@@ -135,7 +135,7 @@ func (b *Bot) cbUserPick(ctx context.Context, q *models.CallbackQuery) {
 	}
 }
 
-// cbSettings کال‌بک‌های منوی تنظیمات را پردازش می‌کند.
+// cbSettings handles the settings menu callbacks.
 func (b *Bot) cbSettings(ctx context.Context, q *models.CallbackQuery) {
 	u, err := b.upsertUser(ctx, q.From)
 	if err != nil {
@@ -182,7 +182,7 @@ func (b *Bot) cbSettings(ctx context.Context, q *models.CallbackQuery) {
 	}
 }
 
-// showSettings صفحه‌ی تنظیمات را رندر می‌کند.
+// showSettings renders the settings screen.
 func (b *Bot) showSettings(ctx context.Context, u *domain.User, chatID int64, messageID int) {
 	text := "⚙️ تنظیمات\n\nوضعیت فعلی:" +
 		fmt.Sprintf("\nگزارش روزانه: %s", ui.DailyReportLabel(u.DailyReport))
@@ -191,7 +191,7 @@ func (b *Bot) showSettings(ctx context.Context, u *domain.User, chatID int64, me
 	}
 }
 
-// startNewTask شروع جریان ثبت تسک جدید.
+// startNewTask starts the new task flow.
 func (b *Bot) startNewTask(ctx context.Context, u *domain.User, chatID int64, messageID int) {
 	if err := b.setSession(ctx, u.ID, stateWaitingTaskTitle, sessionData{}); err != nil {
 		b.log.Error("set session failed", zap.Error(err))
@@ -201,7 +201,7 @@ func (b *Bot) startNewTask(ctx context.Context, u *domain.User, chatID int64, me
 	}
 }
 
-// startSearch شروع جریان جستجو.
+// startSearch starts the search flow.
 func (b *Bot) startSearch(ctx context.Context, u *domain.User, chatID int64, messageID int) {
 	if err := b.setSession(ctx, u.ID, stateWaitingSearch, sessionData{}); err != nil {
 		b.log.Error("set session failed", zap.Error(err))
@@ -211,7 +211,7 @@ func (b *Bot) startSearch(ctx context.Context, u *domain.User, chatID int64, mes
 	}
 }
 
-// startAssign شروع جریان واگذاری تسک.
+// startAssign starts the task assignment flow.
 func (b *Bot) startAssign(ctx context.Context, u *domain.User, chatID int64, messageID int) {
 	if err := b.setSession(ctx, u.ID, stateWaitingTaskForOther, sessionData{}); err != nil {
 		b.log.Error("set session failed", zap.Error(err))
@@ -221,7 +221,7 @@ func (b *Bot) startAssign(ctx context.Context, u *domain.User, chatID int64, mes
 	}
 }
 
-// sendStatusPick کیبورد پیشنهاد کاربران برای پیگیری وضعیت را نشان می‌دهد.
+// sendStatusPick shows the user suggestions keyboard for status tracking.
 func (b *Bot) sendStatusPick(ctx context.Context, u *domain.User, chatID int64, messageID int) {
 	if err := b.setSession(ctx, u.ID, stateWaitingStatusForOther, sessionData{}); err != nil {
 		b.log.Error("set session failed", zap.Error(err))
@@ -235,7 +235,7 @@ func (b *Bot) sendStatusPick(ctx context.Context, u *domain.User, chatID int64, 
 	}
 }
 
-// sendProfile پروفایل و آمار کاربر را رندر می‌کند.
+// sendProfile renders the user profile with stats.
 func (b *Bot) sendProfile(ctx context.Context, u *domain.User, chatID int64, messageID int) {
 	st, err := b.tasks.Stats(ctx, u.ID)
 	if err != nil {
@@ -264,7 +264,7 @@ func (b *Bot) sendProfile(ctx context.Context, u *domain.User, chatID int64, mes
 	}
 }
 
-// renderDelegatedStatus وضعیت تسک‌های واگذارشده به کاربر هدف را در یک پیام نشان می‌دهد.
+// renderDelegatedStatus shows delegated task status for a target user in one message.
 func (b *Bot) renderDelegatedStatus(ctx context.Context, chatID int64, messageID int, ownerID, targetID uuid.UUID) error {
 	tasks, err := b.tasks.ListByOwnerAndAssignee(ctx, ownerID, targetID)
 	if err != nil {

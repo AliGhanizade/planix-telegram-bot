@@ -9,7 +9,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// TaskRepository کوئری‌های جدول تسک‌ها را کپسوله می‌کند.
+// TaskRepository encapsulates task table queries.
 type TaskRepository struct{ db *gorm.DB }
 
 func NewTask(db *gorm.DB) *TaskRepository { return &TaskRepository{db} }

@@ -1,4 +1,4 @@
-// Package repository لایه‌ی دسترسی به داده است؛ همه‌ی کوئری‌ها اینجا هستند.
+// Package repository is the data access layer; all queries live here.
 package repository
 
 import (
@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// UserRepository کوئری‌های جدول کاربران را کپسوله می‌کند.
+// UserRepository encapsulates user table queries.
 type UserRepository struct{ db *gorm.DB }
 
 func NewUser(db *gorm.DB) *UserRepository { return &UserRepository{db} }

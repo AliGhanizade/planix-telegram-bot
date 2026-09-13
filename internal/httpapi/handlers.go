@@ -1,4 +1,4 @@
-// Package httpapi رابط HTTP برنامه (وب‌هوک تلگرام + API پنل وب) را می‌سازد.
+// Package httpapi builds the http surface (telegram webhook + web panel api).
 package httpapi
 
 import (
@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// Handlers نگهدارنده‌ی وابستگی‌های مشترک هندلرهای HTTP است.
+// Handlers holds shared dependencies for the http handlers.
 type Handlers struct {
 	cfg      config.Config
 	log      *zap.Logger
@@ -22,29 +22,29 @@ type Handlers struct {
 	tasks    *service.TaskService
 }
 
-// NewHandlers هندلرها را با وابستگی‌های تزریق‌شده می‌سازد.
+// NewHandlers builds the handlers with injected dependencies.
 func NewHandlers(cfg config.Config, log *zap.Logger, telegram *bot.Bot, auth *service.AuthService, profiles *service.UserService, tasks *service.TaskService) *Handlers {
 	return &Handlers{cfg: cfg, log: log, telegram: telegram, auth: auth, profiles: profiles, tasks: tasks}
 }
 
-// register مسیرهای عمومی را ثبت می‌کند.
+// register registers the public routes.
 func (h *Handlers) register(r *gin.Engine) {
 	r.GET("/healthz", h.health)
 	r.GET("/openapi.yaml", h.openapi)
 	r.POST("/telegram/webhook", h.telegramWebhook)
 }
 
-// health بررسی سلامت سرویس.
+// health is the service health check.
 func (h *Handlers) health(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
-// openapi سرو قرارداد OpenAPI.
+// openapi serves the openapi contract.
 func (h *Handlers) openapi(c *gin.Context) {
 	c.File("./docs/openapi.yaml")
 }
 
-// telegramWebhook دریافت آپدیت تلگرام با اعتبارسنجی secret.
+// telegramWebhook receives telegram updates with secret validation.
 func (h *Handlers) telegramWebhook(c *gin.Context) {
 	if h.cfg.TelegramWebhookSecret != "" {
 		if c.GetHeader("X-Telegram-Bot-Api-Secret-Token") != h.cfg.TelegramWebhookSecret {
@@ -61,7 +61,7 @@ func (h *Handlers) telegramWebhook(c *gin.Context) {
 		return
 	}
 
-	// پردازش آپدیت ناهمگام انجام می‌شود؛ بلافاصله 200 برمی‌گردد.
+	// the update is processed asynchronously; respond 200 right away.
 	h.telegram.ProcessUpdate(c.Request.Context(), &update)
 	c.Status(http.StatusOK)
 }

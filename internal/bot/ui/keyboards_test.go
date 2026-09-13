@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// buttonsOf همه‌ی دکمه‌های یک markup را یک‌جا برمی‌گرداند.
+// buttonsOf flattens all buttons of a markup.
 func buttonsOf(m models.InlineKeyboardMarkup) []models.InlineKeyboardButton {
 	var out []models.InlineKeyboardButton
 	for _, row := range m.InlineKeyboard {
@@ -17,7 +17,7 @@ func buttonsOf(m models.InlineKeyboardMarkup) []models.InlineKeyboardButton {
 	return out
 }
 
-// hasButton بررسی می‌کند دکمه‌ای با متن داده‌شده وجود دارد.
+// hasButton reports whether a button with the given text exists.
 func hasButton(m models.InlineKeyboardMarkup, text string) bool {
 	for _, b := range buttonsOf(m) {
 		if b.Text == text {
@@ -27,7 +27,7 @@ func hasButton(m models.InlineKeyboardMarkup, text string) bool {
 	return false
 }
 
-// hasStyledButton بررسی می‌کند دکمه‌ای با متن و استایل داده‌شده وجود دارد.
+// hasStyledButton reports whether a button with text and style exists.
 func hasStyledButton(m models.InlineKeyboardMarkup, text, style string) bool {
 	for _, b := range buttonsOf(m) {
 		if b.Text == text && b.Style == style {

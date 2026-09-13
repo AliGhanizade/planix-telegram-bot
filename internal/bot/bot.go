@@ -1,5 +1,5 @@
-// Package bot پیاده‌سازی بات تلگرام پلنیکس است: دریافت آپدیت‌ها،
-// کیبوردهای رنگی، جریان‌های چندمرحله‌ای و رابط کاربری همگام.
+// Package bot implements the planix telegram bot: update handling,
+// colored keyboards, multi step flows and a synced user interface.
 package bot
 
 import (
@@ -18,7 +18,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// Bot نگهدارنده‌ی کلاینت تلگرام و وابستگی‌های بات است.
+// Bot holds the telegram client and bot dependencies.
 type Bot struct {
 	api      *tgbot.Bot
 	users    *repository.UserRepository
@@ -31,8 +31,8 @@ type Bot struct {
 	me       *models.User
 }
 
-// New کلاینت تلگرام را می‌سازد و هندلرها را ثبت می‌کند؛ سرویس‌های احراز هویت
-// و پروفایل از بیرون تزریق می‌شوند تا بات و پنل وب روی یک لایه‌ی سرویس کار کنند.
+// New creates the telegram client and registers handlers; auth
+// and profile services are injected so bot and web share one service layer.
 func New(token, owner string, db *gorm.DB, log *zap.Logger, auth *service.AuthService, profiles *service.UserService) (*Bot, error) {
 	var b *Bot
 	api, err := tgbot.New(token,
@@ -51,11 +51,11 @@ func New(token, owner string, db *gorm.DB, log *zap.Logger, auth *service.AuthSe
 	return b, nil
 }
 
-// Tasks دسترسی سرویس تسک (برای اشتراک با httpapi).
+// Tasks exposes the task service (shared with httpapi).
 func (b *Bot) Tasks() *service.TaskService { return b.tasks }
 
-// Run فهرست دستورهای بات را ثبت و حلقه‌ی دریافت آپدیت‌ها را شروع می‌کند.
-// تا لغو شدن کانتکست بلاک می‌ماند.
+// Run registers bot commands and starts the update loop.
+// blocks until the context is cancelled.
 func (b *Bot) Run(ctx context.Context) {
 	me, err := b.api.GetMe(ctx)
 	if err != nil {
@@ -80,7 +80,7 @@ func (b *Bot) Run(ctx context.Context) {
 	b.api.Start(ctx)
 }
 
-// onUpdate هر آپدیت را در برابر پنیک محافظت و به هندلر مناسب می‌سپارد.
+// onUpdate guards against panics and routes each update.
 func (b *Bot) onUpdate(ctx context.Context, u *models.Update) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -97,14 +97,14 @@ func (b *Bot) onUpdate(ctx context.Context, u *models.Update) {
 	}
 }
 
-// ProcessUpdate یک آپدیت خام (مثلاً از وب‌هوک) را پردازش می‌کند؛ پردازش ناهمگام است.
+// ProcessUpdate handles a raw update (e.g. from the webhook) asynchronously.
 func (b *Bot) ProcessUpdate(ctx context.Context, u *models.Update) {
 	go b.onUpdate(ctx, u)
 }
 
-// ---------- helper های ارسال و دریافت ----------
+// ---------- send helpers ----------
 
-// send یک پیام با markup دلخواه می‌فرستد.
+// send sends a message with the given markup.
 func (b *Bot) send(ctx context.Context, chatID int64, text string, markup models.ReplyMarkup) (*models.Message, error) {
 	return b.api.SendMessage(ctx, &tgbot.SendMessageParams{
 		ChatID:      chatID,
@@ -113,12 +113,12 @@ func (b *Bot) send(ctx context.Context, chatID int64, text string, markup models
 	})
 }
 
-// sendWithKeyboard پیام با کیبورد اصلی (رنگی) می‌فرستد.
+// sendWithKeyboard sends a message with the main colored keyboard.
 func (b *Bot) sendWithKeyboard(ctx context.Context, chatID int64, text string) (*models.Message, error) {
 	return b.send(ctx, chatID, text, ui.MainKeyboard())
 }
 
-// edit متن و markup یک پیام موجود را همان‌جا بروزرسانی می‌کند تا رابط کاربری سینک بماند.
+// edit updates an existing message in place to keep the ui in sync.
 func (b *Bot) edit(ctx context.Context, chatID int64, messageID int, text string, markup models.ReplyMarkup) error {
 	_, err := b.api.EditMessageText(ctx, &tgbot.EditMessageTextParams{
 		ChatID:      chatID,
@@ -132,7 +132,7 @@ func (b *Bot) edit(ctx context.Context, chatID int64, messageID int, text string
 	return err
 }
 
-// render یا پیام موجود را ویرایش می‌کند یا پیام تازه می‌فرستد.
+// render edits the existing message or sends a fresh one.
 func (b *Bot) render(ctx context.Context, chatID int64, messageID int, text string, markup models.ReplyMarkup) error {
 	if messageID > 0 {
 		return b.edit(ctx, chatID, messageID, text, markup)
@@ -141,7 +141,7 @@ func (b *Bot) render(ctx context.Context, chatID int64, messageID int, text stri
 	return err
 }
 
-// answer روی دکمه‌ی فشرده‌شده یک اعلان کوتاه نشان می‌دهد.
+// answer shows a short toast on the pressed button.
 func (b *Bot) answer(ctx context.Context, q *models.CallbackQuery, text string) {
 	_, _ = b.api.AnswerCallbackQuery(ctx, &tgbot.AnswerCallbackQueryParams{
 		CallbackQueryID: q.ID,
@@ -149,7 +149,7 @@ func (b *Bot) answer(ctx context.Context, q *models.CallbackQuery, text string) 
 	})
 }
 
-// answerAlert روی دکمه یک اعلان هشداری نشان می‌دهد.
+// answerAlert shows an alert style toast on the button.
 func (b *Bot) answerAlert(ctx context.Context, q *models.CallbackQuery, text string) {
 	_, _ = b.api.AnswerCallbackQuery(ctx, &tgbot.AnswerCallbackQueryParams{
 		CallbackQueryID: q.ID,
@@ -158,7 +158,7 @@ func (b *Bot) answerAlert(ctx context.Context, q *models.CallbackQuery, text str
 	})
 }
 
-// upsertUser کاربر تلگرام را در دیتابیس ثبت یا بروزرسانی می‌کند.
+// upsertUser creates or updates the telegram user in the database.
 func (b *Bot) upsertUser(ctx context.Context, from models.User) (*domain.User, error) {
 	u := &domain.User{
 		TelegramID:   from.ID,
@@ -174,7 +174,7 @@ func (b *Bot) upsertUser(ctx context.Context, from models.User) (*domain.User, e
 	return u, nil
 }
 
-// cbOrigin چت و پیامِ مبدأ یک کال‌بک را برمی‌گرداند.
+// cbOrigin returns the chat and message a callback came from.
 func cbOrigin(q *models.CallbackQuery) (chatID int64, messageID int, ok bool) {
 	if q.Message.Message != nil {
 		return q.Message.Message.Chat.ID, q.Message.Message.ID, true
@@ -185,7 +185,7 @@ func cbOrigin(q *models.CallbackQuery) (chatID int64, messageID int, ok bool) {
 	return 0, 0, false
 }
 
-// onText پیام‌های متنی کاربر را پردازش می‌کند.
+// onText processes user text messages.
 func (b *Bot) onText(ctx context.Context, m *models.Message) {
 	if m.From == nil || m.From.IsBot {
 		return
