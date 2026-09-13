@@ -8,7 +8,7 @@ import (
 )
 
 // registerFolders routes for folder management (authed).
-func (h *Handlers) registerFolders(authed *gin.RouterGroup) {
+func (h *Handlers) registerFolders(authed *gin.RouterGroup, _ *gin.RouterGroup) {
 	g := authed.Group("/folders")
 	{
 		g.GET("", h.listFolders)
@@ -16,8 +16,8 @@ func (h *Handlers) registerFolders(authed *gin.RouterGroup) {
 		g.DELETE("/:id", h.deleteFolder)
 		g.GET("/:id/tasks", h.folderTasks)
 	}
-	g.POST("/tasks/:id/folders", h.linkTaskFolder)
-	g.DELETE("/tasks/:id/folders/:folderId", h.unlinkTaskFolder)
+	authed.POST("/tasks/:id/folders", h.linkTaskFolder)
+	authed.DELETE("/tasks/:id/folders/:folderId", h.unlinkTaskFolder)
 }
 
 type folderResponse struct {

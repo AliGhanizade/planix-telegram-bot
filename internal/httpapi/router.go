@@ -35,7 +35,7 @@ func NewRouter(
 	h.registerAuthed(authed)
 	h.registerTasks(authed)
 	h.registerProfile(authed)
-	h.registerFolders(authed)
+	h.registerFolders(authed, public)
 
 	return r
 }

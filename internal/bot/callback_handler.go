@@ -96,6 +96,10 @@ func (b *Bot) cbTask(ctx context.Context, q *models.CallbackQuery) {
 		// task:viewproof:<id>[:origin]
 		b.cbTaskViewProof(ctx, q, parts[2], chatID, messageID, l)
 
+	case "folders":
+		// task:folders:<id>[:origin]
+		b.cbTaskFolders(ctx, q, u, parts[2], chatID, messageID, l)
+
 	case "evidence":
 		// task:evidence:<id>[:origin]
 		b.cbTaskEvidenceToggle(ctx, q, parts[2], chatID, messageID, l)
@@ -483,4 +487,15 @@ func (b *Bot) cbReportTimeRemove(ctx context.Context, q *models.CallbackQuery, v
 		messageID = 0
 	}
 	b.removeReportTime(ctx, q, u, value, chatID, messageID)
+}
+
+// cbTaskFolders opens the folder picker for one task.
+func (b *Bot) cbTaskFolders(ctx context.Context, q *models.CallbackQuery, u *domain.User, rawID string, chatID int64, messageID int, l ui.Lang) {
+	id, err := uuid.Parse(rawID)
+	if err != nil {
+		b.answerAlert(ctx, q, ui.InvalidTaskIDToast(l))
+		return
+	}
+	b.answer(ctx, q, "")
+	b.showFolderPick(ctx, u, id, chatID, messageID)
 }
