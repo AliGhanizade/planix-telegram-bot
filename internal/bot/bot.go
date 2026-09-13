@@ -100,6 +100,8 @@ func (b *Bot) onUpdate(ctx context.Context, u *models.Update) {
 	switch {
 	case u.Message != nil && u.Message.Text != "":
 		b.onText(ctx, u.Message)
+	case u.Message != nil && len(u.Message.Photo) > 0:
+		b.onPhoto(ctx, u.Message)
 	case u.CallbackQuery != nil:
 		b.onCallback(ctx, u.CallbackQuery)
 	}

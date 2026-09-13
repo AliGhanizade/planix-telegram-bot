@@ -76,8 +76,12 @@ func (b *Bot) renderTaskCard(ctx context.Context, chatID int64, messageID int, t
 	if err != nil {
 		return err
 	}
-	text := ui.CardHeader(l) + ui.FormatTask(task, l)
-	return b.render(ctx, chatID, messageID, text, ui.TaskCardKeyboard(task, o, l))
+	hasProof := false
+	if _, err := b.tasks.LatestEvidence(ctx, taskID); err == nil {
+		hasProof = true
+	}
+	text := ui.CardHeader(l) + ui.FormatTask(task, l) + ui.ProofLine(hasProof, l) + "\n"
+	return b.render(ctx, chatID, messageID, text, ui.TaskCardKeyboard(task, o, l, hasProof))
 }
 
 // notifyOwner tells the owner when someone works on their delegated task.

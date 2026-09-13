@@ -16,12 +16,38 @@ import (
 
 // TaskService is the task service layer between bot and repositories.
 type TaskService struct {
-	db    *gorm.DB
-	tasks *repository.TaskRepository
+	db       *gorm.DB
+	tasks    *repository.TaskRepository
+	evidence *repository.EvidenceRepository
 }
 
 // NewTask builds the task service.
-func NewTask(db *gorm.DB) *TaskService { return &TaskService{db: db, tasks: repository.NewTask(db)} }
+func NewTask(db *gorm.DB) *TaskService {
+	return &TaskService{db: db, tasks: repository.NewTask(db), evidence: repository.NewEvidence(db)}
+}
+
+// SavePhotoEvidence stores a photo the user sent as proof for a task.
+func (s *TaskService) SavePhotoEvidence(ctx context.Context, taskID, userID uuid.UUID, fileID string) error {
+	e := &domain.TaskEvidence{
+		TaskID:         taskID,
+		SubmittedByID:  userID,
+		Kind:           "photo",
+		TelegramFileID: fileID,
+	}
+	if err := s.evidence.Create(ctx, e); err != nil {
+		return err
+	}
+	task, err := s.tasks.GetByID(ctx, taskID)
+	if err != nil {
+		return nil
+	}
+	return s.log(ctx, &task.AssigneeID, "task", task.ID, "proof_added", nil)
+}
+
+// LatestEvidence returns the newest proof of a task, if any.
+func (s *TaskService) LatestEvidence(ctx context.Context, taskID uuid.UUID) (*domain.TaskEvidence, error) {
+	return s.evidence.LatestForTask(ctx, taskID)
+}
 
 // Create saves a new task; when no due date is given it defaults to 20 hours later.
 func (s *TaskService) Create(ctx context.Context, task *domain.Task) error {

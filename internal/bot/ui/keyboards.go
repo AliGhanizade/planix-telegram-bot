@@ -160,7 +160,7 @@ func filterButton(label string, f, active ListFilter, l Lang) models.InlineKeybo
 }
 
 // TaskCardKeyboard builds the colored task management card.
-func TaskCardKeyboard(task *domain.Task, o TaskOrigin, l Lang) models.InlineKeyboardMarkup {
+func TaskCardKeyboard(task *domain.Task, o TaskOrigin, l Lang, hasProof bool) models.InlineKeyboardMarkup {
 	var rows [][]models.InlineKeyboardButton
 
 	editTitle, editDesc := "📝 عنوان", "📄 توضیحات"
@@ -168,12 +168,14 @@ func TaskCardKeyboard(task *domain.Task, o TaskOrigin, l Lang) models.InlineKeyb
 	del, refresh := "🗑 حذف", "🔄 بروزرسانی"
 	back := "↩️ بازگشت"
 	doneBtn, reopen := "✅ انجام شد", "🔄 بازگشایی تسک"
+	proof, viewProof := "📷 ارسال عکس", "📷 مشاهده عکس"
 	if l == En {
 		editTitle, editDesc = "📝 Title", "📄 Description"
 		editDue, editPrio = "📅 Due date", "⚡ Priority"
 		del, refresh = "🗑 Delete", "🔄 Refresh"
 		back = "↩️ Back"
 		doneBtn, reopen = "✅ Done", "🔄 Reopen task"
+		proof, viewProof = "📷 Send photo", "📷 View photo"
 	}
 
 	if task.Status == "completed" {
@@ -194,6 +196,16 @@ func TaskCardKeyboard(task *domain.Task, o TaskOrigin, l Lang) models.InlineKeyb
 		ib(editDue, TaskData("edit:due", task.ID, o), ""),
 		ib(editPrio, TaskData("edit:priority", task.ID, o), ""),
 	})
+	if hasProof {
+		rows = append(rows, []models.InlineKeyboardButton{
+			ib(proof, TaskData("proof", task.ID, o), ""),
+			ib(viewProof, TaskData("viewproof", task.ID, o), StylePrimary),
+		})
+	} else {
+		rows = append(rows, []models.InlineKeyboardButton{
+			ib(proof, TaskData("proof", task.ID, o), ""),
+		})
+	}
 	rows = append(rows, []models.InlineKeyboardButton{
 		{Text: del, CallbackData: TaskData("delete", task.ID, o), Style: StyleDanger},
 		ib(refresh, TaskData("refresh", task.ID, o), ""),

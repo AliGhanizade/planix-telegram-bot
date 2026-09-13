@@ -7,6 +7,7 @@ import (
 
 	"github.com/AliGhanizade/planix-telegram-bot/internal/bot/ui"
 	"github.com/AliGhanizade/planix-telegram-bot/internal/domain"
+	tgbot "github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -76,6 +77,14 @@ func (b *Bot) cbTask(ctx context.Context, q *models.CallbackQuery) {
 			return
 		}
 		b.cbTaskPriority(ctx, q, parts[2], parts[3], chatID, messageID, l)
+
+	case "proof":
+		// task:proof:<id>[:origin]
+		b.cbTaskProof(ctx, q, u, parts[2], chatID, messageID, l)
+
+	case "viewproof":
+		// task:viewproof:<id>[:origin]
+		b.cbTaskViewProof(ctx, q, parts[2], chatID, messageID, l)
 
 	case "edit":
 		// task:edit:<what>:<id>[:origin]
@@ -361,5 +370,59 @@ func (b *Bot) cbTaskPriority(ctx context.Context, q *models.CallbackQuery, rawID
 
 	if err := b.renderTaskCard(ctx, chatID, messageID, id, origin, l); err != nil {
 		b.log.Error("render task card failed", zap.Error(err))
+	}
+}
+
+// cbTaskProof starts the photo proof flow for a task.
+func (b *Bot) cbTaskProof(ctx context.Context, q *models.CallbackQuery, u *domain.User, rawID string, chatID int64, messageID int, l ui.Lang) {
+	id, err := uuid.Parse(rawID)
+	if err != nil {
+		b.answerAlert(ctx, q, ui.InvalidTaskIDToast(l))
+		return
+	}
+	origin, err := ui.ParseTaskOrigin(ui.SplitCallback(q.Data), 3)
+	if err != nil {
+		b.answer(ctx, q, "")
+		return
+	}
+	if err := b.setSession(ctx, u.ID, stateWaitingTaskProof, sessionData{
+		TaskID: id.String(),
+		Back:   cardBackRef(chatID, messageID, origin),
+	}); err != nil {
+		b.log.Error("set session failed", zap.Error(err))
+		b.answer(ctx, q, ui.ErrGeneric(l))
+		return
+	}
+	b.answer(ctx, q, "")
+	if err := b.edit(ctx, chatID, messageID, ui.PhotoProofPrompt(l), ui.CancelInlineKeyboard(l)); err != nil {
+		b.log.Error("render proof prompt failed", zap.Error(err))
+	}
+}
+
+// cbTaskViewProof re-sends the stored proof photo of a task.
+func (b *Bot) cbTaskViewProof(ctx context.Context, q *models.CallbackQuery, rawID string, chatID int64, messageID int, l ui.Lang) {
+	id, err := uuid.Parse(rawID)
+	if err != nil {
+		b.answerAlert(ctx, q, ui.InvalidTaskIDToast(l))
+		return
+	}
+	evidence, err := b.tasks.LatestEvidence(ctx, id)
+	if err != nil || evidence.TelegramFileID == "" {
+		b.answerAlert(ctx, q, ui.ProofMissingToast(l))
+		return
+	}
+	task, err := b.tasks.GetByID(ctx, id)
+	if err != nil {
+		b.answerAlert(ctx, q, ui.TaskNotFoundToast(l))
+		return
+	}
+	b.answer(ctx, q, "")
+	_, err = b.api.SendPhoto(ctx, &tgbot.SendPhotoParams{
+		ChatID:  chatID,
+		Photo:   &models.InputFileString{Data: evidence.TelegramFileID},
+		Caption: ui.PhotoCaption(task.Title, l),
+	})
+	if err != nil {
+		b.log.Error("send proof photo failed", zap.Error(err))
 	}
 }

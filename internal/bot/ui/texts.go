@@ -619,3 +619,57 @@ func HumanDuration(d time.Duration, l Lang) string {
 	}
 	return fmt.Sprintf("%d روز", int(d.Hours()/24))
 }
+
+// PhotoProofPrompt asks the user to send a proof photo.
+func PhotoProofPrompt(l Lang) string {
+	if l == En {
+		return "📷 Send a photo as proof for this task:"
+	}
+	return "📷 عکس مدرک این تسک را بفرست:"
+}
+
+// PhotoSaved confirms a proof photo was stored.
+func PhotoSaved(l Lang) string {
+	if l == En {
+		return "✅ Photo proof saved."
+	}
+	return "✅ عکس مدرک ذخیره شد."
+}
+
+// ProofLine shows the proof status on the task card.
+func ProofLine(has bool, l Lang) string {
+	if l == En {
+		if has {
+			return "📷 Proof: yes ✅"
+		}
+		return "📷 Proof: no ❌"
+	}
+	if has {
+		return "📷 مدرک: دارد ✅"
+	}
+	return "📷 مدرک: ندارد ❌"
+}
+
+// PhotoCaption captions a proof photo.
+func PhotoCaption(title string, l Lang) string {
+	if l == En {
+		return fmt.Sprintf("📷 Proof for task «%s»", title)
+	}
+	return fmt.Sprintf("📷 مدرک تسک «%s»", title)
+}
+
+// ProofMissingToast is shown when a task has no proof yet.
+func ProofMissingToast(l Lang) string {
+	if l == En {
+		return "No proof yet 🤷"
+	}
+	return "مدرکی ثبت نشده 🤷"
+}
+
+// NoTaskForPhoto is the hint when a photo arrives outside a proof flow.
+func NoTaskForPhoto(l Lang) string {
+	if l == En {
+		return "Tap the 📷 button on a task card first, then send the photo."
+	}
+	return "برای ثبت عکس، اول از کارت تسک دکمه 📷 را بزن."
+}

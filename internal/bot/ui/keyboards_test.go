@@ -71,7 +71,7 @@ func TestTaskCardKeyboardColoredButtons(t *testing.T) {
 	id := uuid.New()
 
 	pending := &domain.Task{BaseModel: domain.BaseModel{ID: id}, Title: "تست", Status: "pending"}
-	kb := TaskCardKeyboard(pending, NoOrigin, Fa)
+	kb := TaskCardKeyboard(pending, NoOrigin, Fa, false)
 	if !hasStyledButton(kb, "✅ انجام شد", StyleSuccess) {
 		t.Error("pending task card must have green done button")
 	}
@@ -83,7 +83,7 @@ func TestTaskCardKeyboardColoredButtons(t *testing.T) {
 	}
 
 	completed := &domain.Task{BaseModel: domain.BaseModel{ID: id}, Title: "تست", Status: "completed"}
-	kb = TaskCardKeyboard(completed, NoOrigin, Fa)
+	kb = TaskCardKeyboard(completed, NoOrigin, Fa, false)
 	if !hasStyledButton(kb, "🔄 بازگشایی تسک", StylePrimary) {
 		t.Error("completed task card must have blue reopen button")
 	}

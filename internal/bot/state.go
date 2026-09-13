@@ -9,7 +9,9 @@ import (
 
 	"github.com/AliGhanizade/planix-telegram-bot/internal/bot/ui"
 	"github.com/AliGhanizade/planix-telegram-bot/internal/domain"
+	"github.com/go-telegram/bot/models"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -24,6 +26,8 @@ const (
 	stateWaitingEditFirstName = "waiting_edit_first_name"
 	stateWaitingEditLastName  = "waiting_edit_last_name"
 	stateWaitingEditTimezone  = "waiting_edit_timezone"
+
+	stateWaitingTaskProof = "waiting_task_proof"
 )
 
 // backRef is where to re-render after a flow ends; keeps the ui in sync.
@@ -112,6 +116,47 @@ func (b *Bot) checkState(ctx context.Context, u *domain.User, text string, chatI
 		return b.handleProfileEditInput(ctx, u, session, text)
 	}
 	return nil
+}
+
+// onPhoto processes photo messages, currently as task proof.
+func (b *Bot) onPhoto(ctx context.Context, m *models.Message) {
+	if m.From == nil || m.From.IsBot {
+		return
+	}
+	u, err := b.upsertUser(ctx, *m.From)
+	if err != nil {
+		b.log.Error("upsert user failed", zap.Error(err))
+		return
+	}
+	session, ok, err := b.activeSession(ctx, u.ID)
+	if err != nil || !ok || session.State != stateWaitingTaskProof {
+		_, _ = b.send(ctx, m.Chat.ID, ui.NoTaskForPhoto(b.lang(u)), ui.MainKeyboard(b.lang(u)))
+		return
+	}
+	if len(m.Photo) == 0 {
+		return
+	}
+	// the last photo size is the largest one
+	fileID := m.Photo[len(m.Photo)-1].FileID
+
+	var data sessionData
+	_ = json.Unmarshal([]byte(session.Data), &data)
+	taskID, err := uuid.Parse(data.TaskID)
+	if err != nil {
+		_ = b.clearSession(ctx, u.ID)
+		return
+	}
+	if err := b.tasks.SavePhotoEvidence(ctx, taskID, u.ID, fileID); err != nil {
+		b.log.Error("save photo evidence failed", zap.Error(err))
+		return
+	}
+	if err := b.clearSession(ctx, u.ID); err != nil {
+		return
+	}
+	_, _ = b.send(ctx, m.Chat.ID, ui.PhotoSaved(b.lang(u)), ui.MainKeyboard(b.lang(u)))
+	if data.Back != nil {
+		b.renderTaskCard(ctx, data.Back.ChatID, data.Back.MessageID, taskID, data.Back.origin(), b.lang(u))
+	}
 }
 
 // handleProfileEditInput saves the new profile field value and re-renders the edit menu.
