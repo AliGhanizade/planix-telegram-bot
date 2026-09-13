@@ -61,6 +61,13 @@ func (r *UserRepository) Count(c context.Context) (int64, error) {
 	var n int64
 	return n, r.db.WithContext(c).Model(&domain.User{}).Count(&n).Error
 }
+func (r *UserRepository) ListActiveWithDailyReport(ctx context.Context) ([]domain.User, error) {
+	var v []domain.User
+	return v, r.db.WithContext(ctx).Where("is_active = true AND daily_report = true").Find(&v).Error
+}
+func (r *UserRepository) SetDailyReport(ctx context.Context, id uuid.UUID, enabled bool) error {
+	return r.db.WithContext(ctx).Model(&domain.User{}).Where("id = ?", id).Update("daily_report", enabled).Error
+}
 func (r *UserRepository) Delete(c context.Context, id uuid.UUID) error {
 	return r.db.WithContext(c).Delete(&domain.User{}, "id = ?", id).Error
 }
@@ -137,6 +144,37 @@ func (r *TaskRepository) ListByAssignee(c context.Context, id uuid.UUID) ([]doma
 func (r *TaskRepository) ListPendingByAssignee(c context.Context, id uuid.UUID) ([]domain.Task, error) {
 	var v []domain.Task
 	return v, r.db.WithContext(c).Where("assignee_id = ? and status = ?", id, "pending").Order("due_at nulls last").Find(&v).Error
+}
+func (r *TaskRepository) CountByAssigneeAndStatus(c context.Context, id uuid.UUID, status string) (int64, error) {
+	var n int64
+	q := r.db.WithContext(c).Model(&domain.Task{}).Where("assignee_id = ?", id)
+	if status != "" {
+		q = q.Where("status = ?", status)
+	}
+	return n, q.Count(&n).Error
+}
+func (r *TaskRepository) ListByAssigneePaged(c context.Context, id uuid.UUID, status string, limit, offset int) ([]domain.Task, error) {
+	var v []domain.Task
+	q := r.db.WithContext(c).Where("assignee_id = ?", id)
+	if status != "" {
+		q = q.Where("status = ?", status)
+	}
+	return v, q.Order("created_at desc").Limit(limit).Offset(offset).Find(&v).Error
+}
+func (r *TaskRepository) SearchByTitle(c context.Context, id uuid.UUID, query string, limit int) ([]domain.Task, error) {
+	var v []domain.Task
+	return v, r.db.WithContext(c).
+		Where("assignee_id = ? AND lower(title) LIKE lower(?)", id, "%"+query+"%").
+		Order("created_at desc").Limit(limit).Find(&v).Error
+}
+func (r *TaskRepository) ListDueSoon(c context.Context, from, to time.Time) ([]domain.Task, error) {
+	var v []domain.Task
+	return v, r.db.WithContext(c).
+		Where("status = ? AND reminded_at IS NULL AND due_at >= ? AND due_at < ?", "pending", from, to).
+		Find(&v).Error
+}
+func (r *TaskRepository) MarkReminded(c context.Context, id uuid.UUID, at time.Time) error {
+	return r.db.WithContext(c).Model(&domain.Task{}).Where("id = ?", id).Update("reminded_at", at).Error
 }
 func (r *TaskRepository) ListByOwner(c context.Context, id uuid.UUID) ([]domain.Task, error) {
 	var v []domain.Task

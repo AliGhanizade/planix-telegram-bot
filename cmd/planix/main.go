@@ -1,3 +1,4 @@
+// Planix Telegram Bot — بات تلگرامی فارسی برای برنامه‌ریزی و پیگیری تسک‌ها.
 package main
 
 import (
@@ -7,6 +8,9 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	// برای خواندن تایم‌زون‌ها (مثل Asia/Tehran) در محیط‌های بدون tzdata سیستمی.
+	_ "time/tzdata"
 
 	"github.com/AliGhanizade/planix-telegram-bot/internal/app"
 	"go.uber.org/zap"
@@ -30,6 +34,7 @@ func main() {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	application.Stop()

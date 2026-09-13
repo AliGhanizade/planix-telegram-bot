@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/AliGhanizade/planix-telegram-bot/internal/domain"
@@ -136,4 +137,126 @@ func (s *TaskService) UpdateDescription(ctx context.Context, taskID uuid.UUID, d
 		return err
 	}
 	return s.log(ctx, &task.OwnerID, "task", task.ID, "updated_description", nil)
+}
+
+// TaskStats آمار تسک‌های یک کاربر است.
+type TaskStats struct {
+	Pending   int64
+	Completed int64
+	Cancelled int64
+}
+
+// CompletionRate درصد پیشرفت کاربر را برمی‌گرداند.
+func (t TaskStats) CompletionRate() float64 {
+	total := t.Pending + t.Completed + t.Cancelled
+	if total == 0 {
+		return 0
+	}
+	return float64(t.Completed) / float64(total) * 100
+}
+
+// Reopen تسکِ انجام‌شده را دوباره باز می‌کند.
+func (s *TaskService) Reopen(ctx context.Context, taskID uuid.UUID) (*domain.Task, error) {
+	task, err := s.tasks.GetByID(ctx, taskID)
+	if err != nil {
+		return nil, err
+	}
+	if task.Status == "pending" {
+		return task, nil
+	}
+	if err = s.tasks.Reopen(ctx, taskID); err != nil {
+		return nil, err
+	}
+	task.Status = "pending"
+	task.CompletedAt = nil
+	task.RemindedAt = nil
+	_ = s.log(ctx, &task.AssigneeID, "task", task.ID, "reopened", nil)
+	return task, nil
+}
+
+// UpdatePriority اولویت تسک را تغییر می‌دهد.
+func (s *TaskService) UpdatePriority(ctx context.Context, taskID uuid.UUID, priority string) error {
+	switch priority {
+	case "low", "normal", "high", "urgent":
+	default:
+		return fmt.Errorf("invalid priority: %s", priority)
+	}
+	task, err := s.GetByID(ctx, taskID)
+	if err != nil {
+		return err
+	}
+	if err := s.tasks.UpdatePriority(ctx, taskID, priority); err != nil {
+		return err
+	}
+	return s.log(ctx, &task.OwnerID, "task", task.ID, "updated_priority", map[string]string{"priority": priority})
+}
+
+// UpdateDueAt موعد تسک را تغییر می‌دهد؛ nil یعنی حذف موعد.
+func (s *TaskService) UpdateDueAt(ctx context.Context, taskID uuid.UUID, due *time.Time) error {
+	task, err := s.GetByID(ctx, taskID)
+	if err != nil {
+		return err
+	}
+	if err := s.tasks.UpdateDueAt(ctx, taskID, due); err != nil {
+		return err
+	}
+	// با تغییر موعد، یادآوری قبلی بی‌معنا می‌شود.
+	_ = s.db.WithContext(ctx).Model(&domain.Task{}).Where("id = ?", taskID).Update("reminded_at", nil).Error
+	return s.log(ctx, &task.OwnerID, "task", task.ID, "updated_due", nil)
+}
+
+// ListFiltered تسک‌های کاربر را با فیلتر وضعیت و صفحه‌بندی برمی‌گرداند.
+// filter می‌تواند pending، completed یا all باشد.
+func (s *TaskService) ListFiltered(ctx context.Context, userID uuid.UUID, filter string, page, size int) ([]domain.Task, int64, error) {
+	status := ""
+	switch filter {
+	case "pending":
+		status = "pending"
+	case "completed":
+		status = "completed"
+	}
+	if page < 1 {
+		page = 1
+	}
+	total, err := s.tasks.CountByAssigneeAndStatus(ctx, userID, status)
+	if err != nil {
+		return nil, 0, err
+	}
+	tasks, err := s.tasks.ListByAssigneePaged(ctx, userID, status, size, (page-1)*size)
+	return tasks, total, err
+}
+
+// Search تسک‌های کاربر را با جستجوی عنوان برمی‌گرداند.
+func (s *TaskService) Search(ctx context.Context, userID uuid.UUID, query string, limit int) ([]domain.Task, error) {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return nil, nil
+	}
+	return s.tasks.SearchByTitle(ctx, userID, query, limit)
+}
+
+// Stats آمار تسک‌های کاربر را برمی‌گرداند.
+func (s *TaskService) Stats(ctx context.Context, userID uuid.UUID) (*TaskStats, error) {
+	st := &TaskStats{}
+	var err error
+	if st.Pending, err = s.tasks.CountByAssigneeAndStatus(ctx, userID, "pending"); err != nil {
+		return nil, err
+	}
+	if st.Completed, err = s.tasks.CountByAssigneeAndStatus(ctx, userID, "completed"); err != nil {
+		return nil, err
+	}
+	if st.Cancelled, err = s.tasks.CountByAssigneeAndStatus(ctx, userID, "cancelled"); err != nil {
+		return nil, err
+	}
+	return st, nil
+}
+
+// DueSoon تسک‌هایی که موعدشان نزدیک است و یادآوری نشده‌اند را برمی‌گرداند.
+func (s *TaskService) DueSoon(ctx context.Context, from, to time.Time) ([]domain.Task, error) {
+	return s.tasks.ListDueSoon(ctx, from, to)
+}
+
+// MarkReminded ثبت می‌کند که برای تسک یادآوری فرستاده شده است.
+func (s *TaskService) MarkReminded(ctx context.Context, taskID uuid.UUID, at time.Time) error {
+	return s.tasks.MarkReminded(ctx, taskID, at)
 }

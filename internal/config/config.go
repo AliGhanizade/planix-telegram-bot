@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 )
 
 // Config مجموعه‌ی تنظیمات لازم برای اجرای پلنیکس است.
@@ -16,6 +17,8 @@ type Config struct {
 	OwnerUsername         string
 	LogLevel              string
 	DailyReportCron       string
+	ReminderCron          string
+	ReminderLeadMinutes   int
 }
 
 // Load تنظیمات را می‌خواند و مقادیر اجباری را بررسی می‌کند.
@@ -30,6 +33,8 @@ func Load() (Config, error) {
 		OwnerUsername:         env("TELEGRAM_OWNER_USERNAME", "AliGhanizade"),
 		LogLevel:              env("LOG_LEVEL", "info"),
 		DailyReportCron:       env("DAILY_REPORT_CRON", "0 0 21 * * *"),
+		ReminderCron:          env("REMINDER_CRON", "0 */15 * * * *"),
+		ReminderLeadMinutes:   envInt("REMINDER_LEAD_MINUTES", 120),
 	}
 	if c.TelegramBotToken == "" {
 		return c, fmt.Errorf("TELEGRAM_BOT_TOKEN is required")
@@ -44,6 +49,16 @@ func Load() (Config, error) {
 func env(key, fallback string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
+	}
+	return fallback
+}
+
+// envInt مقدار عددی متغیر محیطی را برمی‌گرداند یا در نبود/نامعتبری آن مقدار پیش‌فرض را.
+func envInt(key string, fallback int) int {
+	if value := os.Getenv(key); value != "" {
+		if n, err := strconv.Atoi(value); err == nil && n > 0 {
+			return n
+		}
 	}
 	return fallback
 }

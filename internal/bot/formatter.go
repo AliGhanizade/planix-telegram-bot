@@ -18,6 +18,19 @@ var priorityLabels = map[string]string{
 var statusLabels = map[string]string{
 	"pending":   "⏳ در انتظار",
 	"completed": "✅ انجام شده",
+	"cancelled": "❌ لغو شده",
+}
+
+// statusEmoji نشان وضعیت برای فهرست‌ها.
+func statusEmoji(status string) string {
+	switch status {
+	case "completed":
+		return "✅"
+	case "cancelled":
+		return "❌"
+	default:
+		return "⏳"
+	}
 }
 
 // priorityLabel برچسب فارسی اولویت را برمی‌گرداند؛ در نبود برچسب، مقدار خام.
@@ -36,12 +49,16 @@ func statusLabel(status string) string {
 	return status
 }
 
+// dueLabel موعد تسک را به شکل خوانا برمی‌گرداند.
+func dueLabel(task *domain.Task) string {
+	if task.DueAt == nil {
+		return "ندارد"
+	}
+	return task.DueAt.Format("01-02 15:04")
+}
+
 // FormatTask کارت کامل یک تسک را به فارسی می‌سازد.
 func FormatTask(task *domain.Task) string {
-	due := "ندارد"
-	if task.DueAt != nil {
-		due = task.DueAt.Format("01-02 15:04")
-	}
 	completed := "-"
 	if task.CompletedAt != nil {
 		completed = task.CompletedAt.Format("01-02 15:04")
@@ -66,26 +83,17 @@ func FormatTask(task *domain.Task) string {
 		description,
 		priorityLabel(task.Priority),
 		statusLabel(task.Status),
-		due,
+		dueLabel(task),
 		evidence,
 		completed,
 	)
 }
 
-// FormatTasks خلاصه‌ی چند تسک را در یک متن می‌سازد.
-func FormatTasks(tasks []domain.Task) string {
-	var result string
-	for _, task := range tasks {
-		result += fmt.Sprintf("📝 عنوان: %s\n⚡ اولویت: %s   📌 وضعیت: %s\n\n",
-			task.Title,
-			priorityLabel(task.Priority),
-			statusLabel(task.Status),
-		)
-	}
-	return result
-}
-
 // FormatSmallInfo یک خط خلاصه برای فهرست‌ها می‌سازد.
 func FormatSmallInfo(task *domain.Task) string {
-	return fmt.Sprintf("📝 %s\n%s | %s", task.Title, priorityLabel(task.Priority), statusLabel(task.Status))
+	line := fmt.Sprintf("%s %s — %s", statusEmoji(task.Status), task.Title, priorityLabel(task.Priority))
+	if task.DueAt != nil {
+		line += " — 📅 " + task.DueAt.Format("01-02 15:04")
+	}
+	return line
 }

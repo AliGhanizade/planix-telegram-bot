@@ -28,6 +28,7 @@ type User struct {
 	LanguageCode string     `gorm:"default:fa" json:"language_code"`
 	Timezone     string     `gorm:"default:Asia/Tehran" json:"timezone"`
 	IsActive     bool       `gorm:"default:true" json:"is_active"`
+	DailyReport  bool       `gorm:"default:true" json:"daily_report"`
 	LastSeenAt   *time.Time `json:"last_seen_at"`
 }
 
@@ -53,6 +54,7 @@ type Task struct {
 	Status           string     `gorm:"size:24;default:pending;index" json:"status"`
 	RequiresEvidence bool       `gorm:"default:false" json:"requires_evidence"`
 	CompletedAt      *time.Time `json:"completed_at"`
+	RemindedAt       *time.Time `json:"reminded_at"`
 }
 
 type TaskEvidence struct {

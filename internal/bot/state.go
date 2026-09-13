@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -18,35 +19,54 @@ const (
 	stateWaitingTaskDescription = "waiting_task_description"
 	stateWaitingTaskForOther    = "waiting_task_for_other"
 	stateWaitingStatusForOther  = "waiting_task_status_for_other"
+	stateWaitingSearch          = "waiting_search"
 )
 
-// taskPayload داده‌ی JSON ذخیره‌شده در نشست برای ویرایش یک تسک است.
-type taskPayload struct {
-	TaskID string `json:"task_id"`
+// backRef مقصد بازگشت بعد از پایان یک جریان؛ برای سینک رابط کاربری.
+type backRef struct {
+	Kind      string `json:"kind"` // card | list
+	Filter    string `json:"filter,omitempty"`
+	Page      int    `json:"page,omitempty"`
+	ChatID    int64  `json:"chat_id"`
+	MessageID int    `json:"message_id"`
 }
 
-// checkState پیام آزاد کاربر را بر اساس وضعیت جاری مکالمه پردازش می‌کند.
-func (b *Bot) checkState(ctx context.Context, u *domain.User, text string) error {
-	session, ok, err := b.findActiveSession(ctx, u.ID)
-	if err != nil || !ok {
+// sessionData داده‌ی JSON ذخیره‌شده در نشست کاربر.
+type sessionData struct {
+	TaskID string   `json:"task_id,omitempty"`
+	Back   *backRef `json:"back,omitempty"`
+}
+
+// cardBackRef مبدأ کارت را به backRef تبدیل می‌کند.
+func cardBackRef(chatID int64, messageID int, o taskOrigin) *backRef {
+	ref := &backRef{Kind: "card", ChatID: chatID, MessageID: messageID}
+	if o.List {
+		ref.Filter = o.Filter
+		ref.Page = o.Page
+	}
+	return ref
+}
+
+// origin مبدأ ذخیره‌شده را به taskOrigin تبدیل می‌کند.
+func (r *backRef) origin() taskOrigin {
+	if r == nil || r.Filter == "" {
+		return noOrigin
+	}
+	return taskOrigin{List: true, Filter: r.Filter, Page: r.Page}
+}
+
+// setSession وضعیت مکالمه و داده‌ی آن را برای ۳۰ دقیقه ذخیره می‌کند.
+func (b *Bot) setSession(ctx context.Context, userID uuid.UUID, state string, data sessionData) error {
+	raw, err := json.Marshal(data)
+	if err != nil {
 		return err
 	}
-
-	switch session.State {
-	case stateWaitingTaskTitle:
-		return b.handleTitleInput(ctx, u, session, text)
-	case stateWaitingTaskDescription:
-		return b.handleDescriptionInput(ctx, u, session, text)
-	case stateWaitingTaskForOther:
-		return b.handleAssignInput(ctx, u, session, text)
-	case stateWaitingStatusForOther:
-		return b.handleStatusInput(ctx, u, text)
-	}
-	return nil
+	s := domain.BotSession{UserID: userID, State: state, Data: string(raw), ExpiresAt: time.Now().Add(30 * time.Minute)}
+	return b.db.WithContext(ctx).Where("user_id = ?", userID).Assign(s).FirstOrCreate(&s).Error
 }
 
-// findActiveSession آخرین نشست معتبر کاربر را برمی‌گرداند.
-func (b *Bot) findActiveSession(ctx context.Context, userID uuid.UUID) (domain.BotSession, bool, error) {
+// activeSession آخرین نشست معتبر کاربر را برمی‌گرداند.
+func (b *Bot) activeSession(ctx context.Context, userID uuid.UUID) (domain.BotSession, bool, error) {
 	var session domain.BotSession
 	err := b.db.WithContext(ctx).
 		Where("user_id = ? AND expires_at > ?", userID, time.Now()).
@@ -61,88 +81,152 @@ func (b *Bot) findActiveSession(ctx context.Context, userID uuid.UUID) (domain.B
 	return session, true, nil
 }
 
+// clearSession نشست فعال کاربر را حذف می‌کند.
+func (b *Bot) clearSession(ctx context.Context, userID uuid.UUID) error {
+	return b.db.WithContext(ctx).Where("user_id = ?", userID).Delete(&domain.BotSession{}).Error
+}
+
+// checkState پیام آزاد کاربر را بر اساس وضعیت جاری مکالمه پردازش می‌کند.
+func (b *Bot) checkState(ctx context.Context, u *domain.User, text string, chatID int64) error {
+	session, ok, err := b.activeSession(ctx, u.ID)
+	if err != nil || !ok {
+		return err
+	}
+
+	switch session.State {
+	case stateWaitingTaskTitle:
+		return b.handleTitleInput(ctx, u, session, text)
+	case stateWaitingTaskDescription:
+		return b.handleDescriptionInput(ctx, u, session, text)
+	case stateWaitingTaskForOther:
+		return b.handleAssignInput(ctx, u, text, chatID)
+	case stateWaitingStatusForOther:
+		return b.handleStatusInput(ctx, u, text, chatID)
+	case stateWaitingSearch:
+		return b.handleSearchInput(ctx, u, session, text, chatID)
+	}
+	return nil
+}
+
 // handleTitleInput عنوان جدید می‌سازد یا عنوان تسک موجودی را ویرایش می‌کند.
 func (b *Bot) handleTitleInput(ctx context.Context, u *domain.User, session domain.BotSession, text string) error {
-	var payload taskPayload
-	if err := json.Unmarshal([]byte(session.Data), &payload); err == nil && payload.TaskID != "" {
-		id, err := uuid.Parse(payload.TaskID)
+	var data sessionData
+	_ = json.Unmarshal([]byte(session.Data), &data)
+
+	// حالت ویرایش: نشست حاوی شناسه‌ی تسک است.
+	if data.TaskID != "" {
+		id, err := uuid.Parse(data.TaskID)
 		if err != nil {
 			return err
 		}
 		if err := b.tasks.UpdateTitle(ctx, id, text); err != nil {
 			return err
 		}
-		if err := b.deleteState(ctx, u.ID); err != nil {
+		if err := b.clearSession(ctx, u.ID); err != nil {
 			return err
 		}
-		return b.reply(u.TelegramID, "✏️ عنوان تسک بروزرسانی شد.", MainKeyboard())
+		if data.Back != nil {
+			return b.renderTaskCard(ctx, data.Back.ChatID, data.Back.MessageID, id, data.Back.origin())
+		}
+		return nil
 	}
 
-	if err := b.deleteState(ctx, u.ID); err != nil {
+	// حالت ایجاد تسک جدید.
+	if err := b.clearSession(ctx, u.ID); err != nil {
 		return err
 	}
 	task := &domain.Task{OwnerID: u.ID, AssigneeID: u.ID, Title: text, Priority: "normal", Status: "pending"}
 	if err := b.tasks.Create(ctx, task); err != nil {
 		return err
 	}
-	return b.reply(u.TelegramID, "تسک ثبت شد ✅\nهر زمان انجامش دادی از لیست امروز تیکش بزن.", MainKeyboard())
+	_, err := b.send(ctx, u.TelegramID,
+		fmt.Sprintf("✅ تسک «%s» ثبت شد.\nهر زمان انجامش دادی از برنامه‌ی امروز تیکش بزن.", task.Title),
+		TodayInlineKeyboard())
+	return err
 }
 
 // handleDescriptionInput توضیحات تسکِ در حال ویرایش را ذخیره می‌کند.
 func (b *Bot) handleDescriptionInput(ctx context.Context, u *domain.User, session domain.BotSession, text string) error {
-	var payload taskPayload
-	if err := json.Unmarshal([]byte(session.Data), &payload); err != nil || payload.TaskID == "" {
-		return b.deleteState(ctx, u.ID)
+	var data sessionData
+	if err := json.Unmarshal([]byte(session.Data), &data); err != nil || data.TaskID == "" {
+		return b.clearSession(ctx, u.ID)
 	}
-	id, err := uuid.Parse(payload.TaskID)
+	id, err := uuid.Parse(data.TaskID)
 	if err != nil {
 		return err
 	}
 	if err := b.tasks.UpdateDescription(ctx, id, text); err != nil {
 		return err
 	}
-	if err := b.deleteState(ctx, u.ID); err != nil {
+	if err := b.clearSession(ctx, u.ID); err != nil {
 		return err
 	}
-	return b.reply(u.TelegramID, "📄 توضیحات تسک بروزرسانی شد.", MainKeyboard())
+	if data.Back != nil {
+		return b.renderTaskCard(ctx, data.Back.ChatID, data.Back.MessageID, id, data.Back.origin())
+	}
+	return nil
+}
+
+// handleSearchInput جستجوی کاربر را اجرا و نتایج را نشان می‌دهد.
+func (b *Bot) handleSearchInput(ctx context.Context, u *domain.User, session domain.BotSession, text string, chatID int64) error {
+	if err := b.clearSession(ctx, u.ID); err != nil {
+		return err
+	}
+	tasks, err := b.tasks.Search(ctx, u.ID, text, 10)
+	if err != nil {
+		return err
+	}
+
+	header := fmt.Sprintf("🔍 نتایج جستجو برای «%s»:\n\n", text)
+	if len(tasks) == 0 {
+		header += "چیزی پیدا نشد 🤷"
+	} else {
+		for _, t := range tasks {
+			header += FormatSmallInfo(&t) + "\n"
+		}
+	}
+	_, err = b.send(ctx, chatID, header, SearchResultsKeyboard(tasks))
+	return err
 }
 
 // handleAssignInput ورودی «واگذاری تسک» را تجزیه و تسک‌ها را ثبت می‌کند.
-func (b *Bot) handleAssignInput(ctx context.Context, u *domain.User, session domain.BotSession, text string) error {
+func (b *Bot) handleAssignInput(ctx context.Context, u *domain.User, text string, chatID int64) error {
 	lines := strings.Split(text, "\n")
 	if len(lines) < 2 {
-		return b.reply(u.TelegramID, "لطفا یوزرنیم را در خط اول و هر تسک را در یک خط جدا بفرست.", CancelStateInlineKeyboard())
+		_, err := b.send(ctx, chatID, "لطفا یوزرنیم را در خط اول و هر تسک را در یک خط جدا بفرست.", CancelInlineKeyboard())
+		return err
 	}
 	username := strings.TrimPrefix(strings.TrimSpace(lines[0]), "@")
 	target, err := b.users.GetByUsername(ctx, username)
 	if err != nil {
-		return b.reply(u.TelegramID, "یوزرنیم پیدا نشد. لطفا دوباره امتحان کن.", CancelStateInlineKeyboard())
+		_, err := b.send(ctx, chatID, "یوزرنیم پیدا نشد. لطفا دوباره امتحان کن.", CancelInlineKeyboard())
+		return err
 	}
 	if target.ID == u.ID {
-		return b.reply(u.TelegramID, "نمی‌تونی تسک رو به خودت واگذار کنی 🙂", CancelStateInlineKeyboard())
+		_, err := b.send(ctx, chatID, "نمی‌تونی تسک رو به خودت واگذار کنی 🙂", CancelInlineKeyboard())
+		return err
 	}
 	if err := b.setTaskForOther(ctx, u.ID, target.ID, lines[1:], "normal"); err != nil {
 		return err
 	}
-	return b.deleteState(ctx, u.ID)
+	return b.clearSession(ctx, u.ID)
 }
 
 // handleStatusInput وضعیت تسک‌های واگذارشده به کاربر هدف را نشان می‌دهد.
-func (b *Bot) handleStatusInput(ctx context.Context, u *domain.User, text string) error {
+func (b *Bot) handleStatusInput(ctx context.Context, u *domain.User, text string, chatID int64) error {
 	username := strings.TrimPrefix(strings.TrimSpace(text), "@")
 	target, err := b.users.GetByUsername(ctx, username)
 	if err != nil {
-		return b.reply(u.TelegramID, "یوزرنیم پیدا نشد. لطفا دوباره امتحان کن.", CancelStateInlineKeyboard())
-	}
-	if err := b.deleteState(ctx, u.ID); err != nil {
+		_, err := b.send(ctx, chatID, "یوزرنیم پیدا نشد. لطفا دوباره امتحان کن.", CancelInlineKeyboard())
 		return err
 	}
-	return b.getTargetTask(ctx, u.ID, target.ID)
+	if err := b.clearSession(ctx, u.ID); err != nil {
+		return err
+	}
+	return b.renderDelegatedStatus(ctx, chatID, 0, u.ID, target.ID)
 }
 
-// deleteState نشست فعال کاربر را حذف می‌کند.
-func (b *Bot) deleteState(ctx context.Context, userID uuid.UUID) error {
-	return b.db.WithContext(ctx).
-		Where("user_id = ?", userID).
-		Delete(&domain.BotSession{}).Error
+// startEditSession برای ویرایش یک تسک، نشست کاربر را با شناسه‌ی تسک و مقصد بازگشت آماده می‌کند.
+func (b *Bot) startEditSession(ctx context.Context, userID uuid.UUID, state string, taskID uuid.UUID, back *backRef) error {
+	return b.setSession(ctx, userID, state, sessionData{TaskID: taskID.String(), Back: back})
 }

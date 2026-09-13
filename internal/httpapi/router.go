@@ -8,7 +8,7 @@ import (
 	"github.com/AliGhanizade/planix-telegram-bot/internal/bot"
 	"github.com/AliGhanizade/planix-telegram-bot/internal/config"
 	"github.com/gin-gonic/gin"
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/go-telegram/bot/models"
 	"go.uber.org/zap"
 )
 
@@ -35,18 +35,15 @@ func NewRouter(cfg config.Config, telegram *bot.Bot, log *zap.Logger) *gin.Engin
 			}
 		}
 
-		var update tgbotapi.Update
+		var update models.Update
 		if err := c.ShouldBindJSON(&update); err != nil {
 			log.Error("invalid telegram update", zap.Error(err))
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
-		if err := telegram.HandleUpdate(c.Request.Context(), update); err != nil {
-			log.Error("failed to handle update", zap.Error(err))
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
-			return
-		}
+		// پردازش آپدیت ناهمگام انجام می‌شود؛ بلافاصله 200 برمی‌گردد.
+		telegram.ProcessUpdate(c.Request.Context(), &update)
 		c.Status(http.StatusOK)
 	})
 

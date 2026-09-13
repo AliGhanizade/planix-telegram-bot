@@ -11,7 +11,6 @@ import (
 	"github.com/AliGhanizade/planix-telegram-bot/internal/platform/database"
 	"github.com/AliGhanizade/planix-telegram-bot/internal/platform/logger"
 	"github.com/gin-gonic/gin"
-	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
 )
 
@@ -20,10 +19,11 @@ type App struct {
 	Config config.Config
 	Logger *zap.Logger
 	Router *gin.Engine
-	cron   *cron.Cron
+	Bot    *bot.Bot
+	stop   context.CancelFunc
 }
 
-// New تنظیمات، لاگر، دیتابیس، بات و زمان‌بند گزارش روزانه را راه می‌اندازد.
+// New تنظیمات، لاگر، دیتابیس و بات را راه می‌اندازد.
 func New() (*App, error) {
 	c, err := config.Load()
 	if err != nil {
@@ -42,18 +42,18 @@ func New() (*App, error) {
 		return nil, fmt.Errorf("create telegram bot: %w", err)
 	}
 
-	go telegram.StartPolling(context.Background())
+	// بات تا لغو شدن کانتکست آپدیت‌ها را دریافت می‌کند.
+	ctx, cancel := context.WithCancel(context.Background())
+	go telegram.Run(ctx)
 
-	scheduler := cron.New(cron.WithSeconds())
-	if _, err = scheduler.AddFunc(c.DailyReportCron, func() {
-		log.Info("daily report schedule started; report delivery will be added with the monitoring workflow")
-	}); err != nil {
-		return nil, fmt.Errorf("invalid DAILY_REPORT_CRON: %w", err)
-	}
-	scheduler.Start()
-
-	return &App{Config: c, Logger: log, Router: httpapi.NewRouter(c, telegram, log), cron: scheduler}, nil
+	return &App{
+		Config: c,
+		Logger: log,
+		Router: httpapi.NewRouter(c, telegram, log),
+		Bot:    telegram,
+		stop:   cancel,
+	}, nil
 }
 
-// Stop زمان‌بند گزارش روزانه را متوقف می‌کند.
-func (a *App) Stop() { a.cron.Stop() }
+// Stop حلقه‌ی دریافت آپدیت‌ها را متوقف می‌کند.
+func (a *App) Stop() { a.stop() }
