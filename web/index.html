@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="fa" dir="rtl" data-theme="dark" data-style="matte">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>پلنیکس | Planix</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+  <!-- top navigation -->
+  <nav class="nav glass-panel" id="nav" hidden>
+    <div class="nav-right">
+      <span class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>
+      </span>
+      <span class="brand">Planix</span>
+    </div>
+    <div class="nav-links">
+      <button class="nav-link" data-view="tasks" data-icon="check-square">تسک‌ها</button>
+      <button class="nav-link" data-view="profile" data-icon="user">پروفایل</button>
+      <button class="nav-link" data-view="appearance" data-icon="palette">ظاهر</button>
+    </div>
+    <div class="nav-left">
+      <button class="icon-btn" id="themeBtn" title="تغییر تم"></button>
+      <button class="icon-btn" id="logoutBtn" title="خروج"></button>
+    </div>
+  </nav>
+
+  <main id="root">
+
+    <!-- login view -->
+    <section class="view auth-view" id="view-login">
+      <div class="auth-card glass-panel">
+        <div class="auth-logo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>
+          <h1>Planix</h1>
+        </div>
+        <p class="auth-hint" id="loginHint">یوزرنیم یا آیدی عددی تلگرامت را وارد کن تا کد ورود توسط بات برایت ارسال شود.</p>
+        <form id="stepIdentifier" class="auth-form">
+          <input type="text" id="identifier" placeholder="@username یا آیدی عددی" autocomplete="username" required>
+          <button type="submit" class="btn primary" id="requestCodeBtn">دریافت کد ورود</button>
+        </form>
+        <form id="stepCode" class="auth-form" hidden>
+          <p class="auth-hint ok">کد ۶ رقمی در تلگرام برایت ارسال شد.</p>
+          <input type="text" id="code" placeholder="کد ۶ رقمی" maxlength="6" inputmode="numeric" autocomplete="one-time-code" required>
+          <button type="submit" class="btn primary" id="verifyBtn">ورود</button>
+          <button type="button" class="btn ghost" id="backBtn">بازگشت</button>
+        </form>
+        <p class="auth-foot">اول باید یک بار در تلگرام به بات استارت بدهی.</p>
+      </div>
+    </section>
+
+    <!-- tasks view -->
+    <section class="view" id="view-tasks" hidden>
+      <header class="view-head">
+        <h2>تسک‌ها</h2>
+        <button class="btn primary" id="newTaskBtn">+ تسک جدید</button>
+      </header>
+
+      <div class="stats-strip glass-panel" id="statsStrip">
+        <div class="stat"><span class="stat-num" id="statPending">0</span><span class="stat-label">باز</span></div>
+        <div class="stat"><span class="stat-num" id="statCompleted">0</span><span class="stat-label">انجام‌شده</span></div>
+        <div class="stat"><span class="stat-num" id="statCancelled">0</span><span class="stat-label">لغوشده</span></div>
+        <div class="stat progress"><span class="stat-label">پیشرفت</span><div class="bar"><div class="bar-fill" id="progressBar"></div></div><span class="stat-num" id="statProgress">0%</span></div>
+      </div>
+
+      <div class="toolbar">
+        <div class="tabs" id="filterTabs">
+          <button class="tab active" data-filter="pending">باز</button>
+          <button class="tab" data-filter="completed">انجام‌شده</button>
+          <button class="tab" data-filter="cancelled">لغوشده</button>
+          <button class="tab" data-filter="all">همه</button>
+        </div>
+        <input type="search" id="searchBox" placeholder="جستجو در عنوان…">
+      </div>
+
+      <div class="task-list" id="taskList"></div>
+
+      <div class="pager" id="pager">
+        <button class="btn ghost" id="prevPage">قبلی</button>
+        <span id="pageInfo">1 / 1</span>
+        <button class="btn ghost" id="nextPage">بعدی</button>
+      </div>
+    </section>
+
+    <!-- profile view -->
+    <section class="view" id="view-profile" hidden>
+      <header class="view-head"><h2>پروفایل</h2></header>
+      <div class="profile-card glass-panel" id="profileCard"></div>
+    </section>
+
+    <!-- appearance view -->
+    <section class="view" id="view-appearance" hidden>
+      <header class="view-head"><h2>ظاهر</h2></header>
+      <div class="appearance-card glass-panel">
+        <div class="opt-group">
+          <h3>تم روشن / تاریک</h3>
+          <div class="opt-row" id="themeOptions">
+            <button class="opt" data-theme="dark">تاریک</button>
+            <button class="opt" data-theme="light">روشن</button>
+            <button class="opt" data-theme="system">سیستم</button>
+          </div>
+        </div>
+
+        <div class="opt-group">
+          <h3>استایل</h3>
+          <div class="opt-row" id="styleOptions">
+            <button class="opt" data-style="matte">مات</button>
+            <button class="opt" data-style="glass">شیشه‌ای</button>
+            <button class="opt" data-style="outline">خطی</button>
+          </div>
+        </div>
+
+        <div class="opt-group">
+          <h3>رنگ اصلی</h3>
+          <div class="opt-row" id="accentOptions">
+            <button class="swatch" data-accent="#ec4899" style="--sw:#ec4899" title="صورتی"></button>
+            <button class="swatch" data-accent="#3b82f6" style="--sw:#3b82f6" title="آبی"></button>
+            <button class="swatch" data-accent="#22c55e" style="--sw:#22c55e" title="سبز"></button>
+            <button class="swatch" data-accent="#eab308" style="--sw:#eab308" title="زرد"></button>
+            <label class="swatch custom" title="رنگ دلخواه">
+              <input type="color" id="customAccent" value="#ec4899">
+            </label>
+          </div>
+        </div>
+
+        <div class="opt-group">
+          <h3>گردی گوشه‌ها</h3>
+          <label class="slider-row">گوشه‌ی کارت‌ها
+            <input type="range" id="radiusRange" min="0" max="24" step="2">
+            <span id="radiusVal"></span>
+          </label>
+          <label class="slider-row">گوشه‌ی دکمه‌ها
+            <input type="range" id="btnRadiusRange" min="0" max="24" step="2">
+            <span id="btnRadiusVal"></span>
+          </label>
+        </div>
+
+        <p class="opt-note">این تنظیمات فقط روی مرورگر خودت ذخیره می‌شود.</p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- generic modal -->
+  <div class="modal-backdrop" id="modalBackdrop" hidden>
+    <div class="modal glass-panel" id="modalBox"></div>
+  </div>
+
+  <!-- toasts -->
+  <div class="toasts" id="toasts"></div>
+
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
