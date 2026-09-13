@@ -4,6 +4,9 @@ package bot
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"net/http"
 	"strings"
 	"time"
 
@@ -131,6 +134,29 @@ func (b *Bot) sendWithKeyboard(ctx context.Context, chatID int64, text string, l
 // lang returns the display language of a user.
 func (b *Bot) lang(u *domain.User) ui.Lang { return ui.Normalize(u.Lang) }
 
+// FetchTelegramFile streams a file stored in telegram without saving it.
+// The caller must close the reader.
+func (b *Bot) FetchTelegramFile(ctx context.Context, fileID string) (io.ReadCloser, string, int64, error) {
+	file, err := b.api.GetFile(ctx, &tgbot.GetFileParams{FileID: fileID})
+	if err != nil {
+		return nil, "", 0, err
+	}
+	url := "https://api.telegram.org/file/bot" + b.api.Token() + "/" + file.FilePath
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, "", 0, err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, "", 0, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
+		return nil, "", 0, fmt.Errorf("telegram file download failed: %s", resp.Status)
+	}
+	return resp.Body, resp.Header.Get("Content-Type"), resp.ContentLength, nil
+}
+
 // edit updates an existing message in place to keep the ui in sync.
 func (b *Bot) edit(ctx context.Context, chatID int64, messageID int, text string, markup models.ReplyMarkup) error {
 	_, err := b.api.EditMessageText(ctx, &tgbot.EditMessageTextParams{
@@ -214,27 +240,27 @@ func (b *Bot) onText(ctx context.Context, m *models.Message) {
 	switch text {
 	case "/start":
 		b.sendWithKeyboard(ctx, m.Chat.ID, ui.WelcomeMessage(b.me, l), l)
-	case "/today", "📋 برنامه امروز", "📅 برنامه‌های من", "📋 Today":
+	case "/today", "برنامه امروز", "📋 برنامه امروز", "📅 برنامه‌های من", "Today", "📋 Today":
 		if err := b.renderTaskList(ctx, m.Chat.ID, 0, u.ID, ui.FilterPending, 1, l); err != nil {
 			b.log.Error("render task list failed", zap.Error(err))
 		}
-	case "/new", "➕ تسک جدید", "➕ New task":
+	case "/new", "تسک جدید", "➕ تسک جدید", "➕ New task", "New task":
 		b.startNewTask(ctx, u, m.Chat.ID, 0)
-	case "/search", "🔍 جستجو", "🔍 Search":
+	case "/search", "جستجو", "🔍 جستجو", "🔍 Search", "Search":
 		b.startSearch(ctx, u, m.Chat.ID, 0)
-	case "/help", "ℹ️ راهنما", "ℹ️ Help":
+	case "/help", "راهنما", "ℹ️ راهنما", "ℹ️ Help", "Help":
 		b.sendWithKeyboard(ctx, m.Chat.ID, ui.HelpMessage(l), l)
-	case "/profile", "👤 پروفایل", "👤 Profile":
+	case "/profile", "پروفایل", "👤 پروفایل", "Profile", "👤 Profile":
 		b.sendProfile(ctx, u, m.Chat.ID, 0)
-	case "👥 واگذاری تسک", "👥 اعمال وظایف دیگران", "👥 Delegate":
+	case "واگذاری تسک", "👥 واگذاری تسک", "👥 اعمال وظایف دیگران", "Delegate", "👥 Delegate":
 		b.startAssign(ctx, u, m.Chat.ID, 0)
-	case "📊 وضعیت وظایف دیگران", "✅ وضعیت وظایف دیگران", "📊 Delegated status":
+	case "وضعیت وظایف", "📊 وضعیت وظایف دیگران", "✅ وضعیت وظایف دیگران", "Delegated status", "📊 Delegated status":
 		b.sendStatusPick(ctx, u, m.Chat.ID, 0)
-	case "⚙️ تنظیمات", "⚙️ Settings":
+	case "تنظیمات", "⚙️ تنظیمات", "Settings", "⚙️ Settings":
 		b.showSettings(ctx, u, m.Chat.ID, 0)
-	case "🛟 پشتیبانی", "پشتیبانی", "🛟 Support":
+	case "پشتیبانی", "🛟 پشتیبانی", "Support", "🛟 Support":
 		b.sendWithKeyboard(ctx, m.Chat.ID, ui.SupportMessage(b.owner, l), l)
-	case "❌ بازگشت", " ❌ بازگشت", "❌ Back":
+	case "بازگشت", "❌ بازگشت", " ❌ بازگشت", "Back", "❌ Back":
 		_ = b.clearSession(ctx, u.ID)
 		b.sendWithKeyboard(ctx, m.Chat.ID, ui.MenuText(l), l)
 	default:

@@ -32,14 +32,15 @@ func BackLabel(l Lang) string {
 	return "🏠 منوی اصلی"
 }
 
-// MainKeyboard is the main colored reply keyboard.
+// MainKeyboard is the main colored reply keyboard, icons come from the
+// button colors instead of emoji.
 func MainKeyboard(l Lang) models.ReplyKeyboardMarkup {
 	if l == En {
 		return models.ReplyKeyboardMarkup{
 			Keyboard: [][]models.KeyboardButton{
-				{kb("➕ New task", StyleSuccess), kb("📋 Today", StylePrimary)},
-				{kb("🔍 Search", ""), kb("👥 Delegate", StylePrimary), kb("📊 Delegated status", "")},
-				{kb("👤 Profile", ""), kb("⚙️ Settings", ""), kb("ℹ️ Help", "")},
+				{kb("New task", StyleSuccess), kb("Today", StylePrimary)},
+				{kb("Search", StylePrimary), kb("Delegate", StyleSuccess), kb("Delegated status", StylePrimary)},
+				{kb("Profile", ""), kb("Settings", ""), kb("Help", "")},
 			},
 			IsPersistent:          true,
 			ResizeKeyboard:        true,
@@ -48,9 +49,9 @@ func MainKeyboard(l Lang) models.ReplyKeyboardMarkup {
 	}
 	return models.ReplyKeyboardMarkup{
 		Keyboard: [][]models.KeyboardButton{
-			{kb("➕ تسک جدید", StyleSuccess), kb("📋 برنامه امروز", StylePrimary)},
-			{kb("🔍 جستجو", ""), kb("👥 واگذاری تسک", StylePrimary), kb("📊 وضعیت وظایف دیگران", "")},
-			{kb("👤 پروفایل", ""), kb("⚙️ تنظیمات", ""), kb("ℹ️ راهنما", "")},
+			{kb("تسک جدید", StyleSuccess), kb("برنامه امروز", StylePrimary)},
+			{kb("جستجو", StylePrimary), kb("واگذاری تسک", StyleSuccess), kb("وضعیت وظایف", StylePrimary)},
+			{kb("پروفایل", ""), kb("تنظیمات", ""), kb("راهنما", "")},
 		},
 		IsPersistent:          true,
 		ResizeKeyboard:        true,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -29,6 +30,7 @@ type taskResponse struct {
 	OwnerID     string     `json:"owner_id"`
 	AssigneeID  string     `json:"assignee_id"`
 	CreatedAt   time.Time  `json:"created_at"`
+	HasProof    bool       `json:"has_proof"`
 }
 
 type createTaskReq struct {
@@ -68,11 +70,17 @@ func (h *Handlers) registerTasks(authed *gin.RouterGroup) {
 		g.DELETE("/:id", h.deleteTask)
 		g.POST("/:id/complete", h.completeTask)
 		g.POST("/:id/reopen", h.reopenTask)
+		g.GET("/:id/proof", h.taskProof)
 	}
 }
 
 // toTaskResponse converts the domain model into the task DTO.
-func toTaskResponse(t *domain.Task) taskResponse {
+// hasProof marks tasks that carry a photo proof.
+func (h *Handlers) toTaskResponse(ctx context.Context, t *domain.Task) taskResponse {
+	hasProof := false
+	if _, err := h.tasks.LatestEvidence(ctx, t.ID); err == nil {
+		hasProof = true
+	}
 	return taskResponse{
 		ID:          t.ID.String(),
 		Title:       t.Title,
@@ -84,6 +92,7 @@ func toTaskResponse(t *domain.Task) taskResponse {
 		OwnerID:     t.OwnerID.String(),
 		AssigneeID:  t.AssigneeID.String(),
 		CreatedAt:   t.CreatedAt,
+		HasProof:    hasProof,
 	}
 }
 
@@ -111,7 +120,7 @@ func (h *Handlers) listTasks(c *gin.Context) {
 		}
 		items := make([]taskResponse, 0, len(tasks))
 		for i := range tasks {
-			items = append(items, toTaskResponse(&tasks[i]))
+			items = append(items, h.toTaskResponse(c.Request.Context(), &tasks[i]))
 		}
 		c.JSON(http.StatusOK, taskListResponse{Items: items, Page: 1, Pages: 1, Total: int64(len(items)), PageSize: len(items)})
 		return
@@ -124,7 +133,7 @@ func (h *Handlers) listTasks(c *gin.Context) {
 	}
 	items := make([]taskResponse, 0, len(tasks))
 	for i := range tasks {
-		items = append(items, toTaskResponse(&tasks[i]))
+		items = append(items, h.toTaskResponse(c.Request.Context(), &tasks[i]))
 	}
 	pages := int((total + webPageSize - 1) / webPageSize)
 	if pages < 1 {
@@ -159,7 +168,7 @@ func (h *Handlers) createTask(c *gin.Context) {
 		fail(c, http.StatusInternalServerError, "خطا در ثبت تسک")
 		return
 	}
-	c.JSON(http.StatusCreated, toTaskResponse(task))
+	c.JSON(http.StatusCreated, h.toTaskResponse(c.Request.Context(), task))
 }
 
 // loadAccessibleTask fetches a task and checks user access.
@@ -188,7 +197,7 @@ func (h *Handlers) getTask(c *gin.Context) {
 	if !ok {
 		return
 	}
-	c.JSON(http.StatusOK, toTaskResponse(task))
+	c.JSON(http.StatusOK, h.toTaskResponse(c.Request.Context(), task))
 }
 
 // updateTask PATCH /api/tasks/:id
@@ -252,7 +261,7 @@ func (h *Handlers) updateTask(c *gin.Context) {
 		fail(c, http.StatusInternalServerError, "خطای داخلی")
 		return
 	}
-	c.JSON(http.StatusOK, toTaskResponse(updated))
+	c.JSON(http.StatusOK, h.toTaskResponse(c.Request.Context(), updated))
 }
 
 // applyStatus changes the task status through the service.
@@ -295,7 +304,7 @@ func (h *Handlers) completeTask(c *gin.Context) {
 		fail(c, http.StatusInternalServerError, "خطا در انجام تسک")
 		return
 	}
-	c.JSON(http.StatusOK, toTaskResponse(updated))
+	c.JSON(http.StatusOK, h.toTaskResponse(c.Request.Context(), updated))
 }
 
 // reopenTask POST /api/tasks/:id/reopen
@@ -309,5 +318,36 @@ func (h *Handlers) reopenTask(c *gin.Context) {
 		fail(c, http.StatusInternalServerError, "خطا در بازگشایی")
 		return
 	}
-	c.JSON(http.StatusOK, toTaskResponse(updated))
+	c.JSON(http.StatusOK, h.toTaskResponse(c.Request.Context(), updated))
+}
+
+// taskProof streams the proof photo straight from telegram.
+// nothing is written to the server disk.
+func (h *Handlers) taskProof(c *gin.Context) {
+	task, ok := h.loadAccessibleTask(c)
+	if !ok {
+		return
+	}
+	evidence, err := h.tasks.LatestEvidence(c.Request.Context(), task.ID)
+	if err != nil || evidence.TelegramFileID == "" {
+		fail(c, http.StatusNotFound, "مدرکی ثبت نشده")
+		return
+	}
+	body, contentType, size, err := h.telegram.FetchTelegramFile(c.Request.Context(), evidence.TelegramFileID)
+	if err != nil {
+		requestLoggerOf(c).Error("fetch proof failed", zapErr(err))
+		fail(c, http.StatusBadGateway, "دریافت عکس از تلگرام ناموفق بود")
+		return
+	}
+	defer body.Close()
+
+	if contentType != "" {
+		c.Header("Content-Type", contentType)
+	}
+	if size > 0 {
+		c.Header("Content-Length", strconv.FormatInt(size, 10))
+	}
+	c.Header("Cache-Control", "private, no-store")
+	c.Status(http.StatusOK)
+	_, _ = io.Copy(c.Writer, body)
 }

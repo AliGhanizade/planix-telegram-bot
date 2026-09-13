@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"strconv"
 	"time"
 
 	"github.com/AliGhanizade/planix-telegram-bot/internal/domain"
@@ -62,10 +63,16 @@ func (s *AuthService) IssueLoginCode(ctx context.Context, userID uuid.UUID, sour
 	return lc, nil
 }
 
-// RequestLoginByUsername finds a user by telegram username and issues a code (web initiated).
-// the user must have started the bot at least once.
-func (s *AuthService) RequestLoginByUsername(ctx context.Context, username string) (*domain.User, *domain.LoginCode, error) {
-	user, err := s.users.GetByUsername(ctx, username)
+// RequestLoginByIdentifier finds a user by telegram username or numeric id
+// and issues a code (web initiated). The user must have started the bot.
+func (s *AuthService) RequestLoginByIdentifier(ctx context.Context, identifier string) (*domain.User, *domain.LoginCode, error) {
+	var user *domain.User
+	var err error
+	if id, parseErr := strconv.ParseInt(identifier, 10, 64); parseErr == nil {
+		user, err = s.users.GetByTelegramID(ctx, id)
+	} else {
+		user, err = s.users.GetByUsername(ctx, identifier)
+	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("user not found: %w", err)
 	}

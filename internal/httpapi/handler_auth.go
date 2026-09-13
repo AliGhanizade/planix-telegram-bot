@@ -14,7 +14,8 @@ import (
 // ---- auth DTOs ----
 
 type loginRequestReq struct {
-	Username string `json:"username" binding:"required"`
+	Identifier string `json:"identifier" binding:"required"` // telegram username or numeric id
+	Username   string `json:"username"`                      // legacy alias
 }
 
 type loginVerifyReq struct {
@@ -56,10 +57,14 @@ func (h *Handlers) requestLogin(c *gin.Context) {
 		return
 	}
 
-	username := strings.TrimPrefix(strings.TrimSpace(req.Username), "@")
-	user, code, err := h.auth.RequestLoginByUsername(c.Request.Context(), username)
+	identifier := strings.TrimSpace(req.Identifier)
+	if identifier == "" {
+		identifier = strings.TrimSpace(req.Username)
+	}
+	identifier = strings.TrimPrefix(identifier, "@")
+	user, code, err := h.auth.RequestLoginByIdentifier(c.Request.Context(), identifier)
 	if err != nil {
-		requestLoggerOf(c).Warn("login request failed", zapErr(err), zapStr("username", username))
+		requestLoggerOf(c).Warn("login request failed", zapErr(err), zapStr("identifier", identifier))
 		fail(c, http.StatusNotFound, "کاربر پیدا نشد؛ اول در تلگرام با بات استارت کن")
 		return
 	}

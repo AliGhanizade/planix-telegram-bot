@@ -53,14 +53,14 @@ func TestMainKeyboardColoredButtons(t *testing.T) {
 		}
 	}
 
-	if styles["➕ تسک جدید"] != StyleSuccess {
-		t.Errorf("new task button style = %q, want %q", styles["➕ تسک جدید"], StyleSuccess)
+	if styles["تسک جدید"] != StyleSuccess {
+		t.Errorf("new task button style = %q, want %q", styles["تسک جدید"], StyleSuccess)
 	}
-	if styles["📋 برنامه امروز"] != StylePrimary {
-		t.Errorf("today button style = %q, want %q", styles["📋 برنامه امروز"], StylePrimary)
+	if styles["برنامه امروز"] != StylePrimary {
+		t.Errorf("today button style = %q, want %q", styles["برنامه امروز"], StylePrimary)
 	}
-	if styles["⚙️ تنظیمات"] != "" {
-		t.Errorf("settings button should have no style, got %q", styles["⚙️ تنظیمات"])
+	if styles["تنظیمات"] != "" {
+		t.Errorf("settings button should have no style, got %q", styles["تنظیمات"])
 	}
 	if !kb.IsPersistent || !kb.ResizeKeyboard {
 		t.Error("main keyboard should be persistent and resized")
