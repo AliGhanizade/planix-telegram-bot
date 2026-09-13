@@ -109,12 +109,14 @@ func TaskListKeyboard(tasks []domain.Task, f ListFilter, page, pages int, l Lang
 
 	back := "🏠 منوی اصلی"
 	prev, next := "⬅️ قبلی", "بعدی ➡️"
-	open, done, all := "⏳ باز", "✅ انجام‌شده", "🗂 همه"
+	mine, fromOthers, helpdesk := "🧑 باز", "📥 از دیگران", "🎧 هلپ‌دسک"
+	completed, cancelled, all := "✅ انجام‌شده", "❌ لغوشده", "🗂 همه"
 	pageOf := "از"
 	if l == En {
 		back = "🏠 Main menu"
 		prev, next = "⬅️ Prev", "Next ➡️"
-		open, done, all = "⏳ Open", "✅ Done", "🗂 All"
+		mine, fromOthers, helpdesk = "🧑 Mine", "📥 From others", "🎧 Help desk"
+		completed, cancelled, all = "✅ Done", "❌ Cancelled", "🗂 All"
 		pageOf = "of"
 	}
 
@@ -128,8 +130,13 @@ func TaskListKeyboard(tasks []domain.Task, f ListFilter, page, pages int, l Lang
 
 	// filter tabs - the active tab is highlighted
 	rows = append(rows, []models.InlineKeyboardButton{
-		filterButton(open, FilterPending, f, l),
-		filterButton(done, FilterCompleted, f, l),
+		filterButton(mine, FilterPending, f, l),
+		filterButton(fromOthers, FilterFromOthers, f, l),
+		filterButton(helpdesk, FilterHelpdesk, f, l),
+	})
+	rows = append(rows, []models.InlineKeyboardButton{
+		filterButton(completed, FilterCompleted, f, l),
+		filterButton(cancelled, FilterCancelled, f, l),
 		filterButton(all, FilterAll, f, l),
 	})
 
@@ -168,24 +175,43 @@ func TaskCardKeyboard(task *domain.Task, o TaskOrigin, l Lang, hasProof bool) mo
 	editDue, editPrio := "📅 موعد", "⚡ اولویت"
 	del, refresh := "🗑 حذف", "🔄 بروزرسانی"
 	back := "↩️ بازگشت"
-	doneBtn, reopen := "✅ انجام شد", "🔄 بازگشایی تسک"
+	doneBtn := "✅ انجام شد"
+	reopen := "🔄 بازگشایی تسک"
 	proof, viewProof := "📷 ارسال عکس", "📷 مشاهده عکس"
+	evidence := evidenceLabel(task.RequiresEvidence, l)
 	if l == En {
 		editTitle, editDesc = "📝 Title", "📄 Description"
 		editDue, editPrio = "📅 Due date", "⚡ Priority"
 		del, refresh = "🗑 Delete", "🔄 Refresh"
 		back = "↩️ Back"
-		doneBtn, reopen = "✅ Done", "🔄 Reopen task"
+		doneBtn = "✅ Done"
+		reopen = "🔄 Reopen task"
 		proof, viewProof = "📷 Send photo", "📷 View photo"
 	}
 
 	if task.Status == "completed" {
-		rows = append(rows, []models.InlineKeyboardButton{
-			{Text: reopen, CallbackData: TaskData("reopen", task.ID, o), Style: StylePrimary},
-		})
+		// reopen is only for tasks that require proof
+		if task.RequiresEvidence {
+			rows = append(rows, []models.InlineKeyboardButton{
+				{Text: reopen, CallbackData: TaskData("reopen", task.ID, o), Style: StylePrimary},
+			})
+		}
 	} else {
 		rows = append(rows, []models.InlineKeyboardButton{
 			{Text: doneBtn, CallbackData: TaskData("done", task.ID, o), Style: StyleSuccess},
+		})
+	}
+
+	rows = append(rows, []models.InlineKeyboardButton{
+		ib(evidence, TaskData("evidence", task.ID, o), ""),
+	})
+
+	rows = append(rows, []models.InlineKeyboardButton{
+		ib(proof, TaskData("proof", task.ID, o), ""),
+	})
+	if hasProof {
+		rows = append(rows, []models.InlineKeyboardButton{
+			ib(viewProof, TaskData("viewproof", task.ID, o), StylePrimary),
 		})
 	}
 
@@ -262,6 +288,20 @@ func PriorityPickerKeyboard(task *domain.Task, o TaskOrigin, l Lang) models.Inli
 			{{Text: cancel, CallbackData: TaskData("refresh", id, o)}},
 		},
 	}
+}
+
+// evidenceLabel renders the proof requirement toggle label.
+func evidenceLabel(required bool, l Lang) string {
+	if l == En {
+		if required {
+			return "🖼 Requires proof: on"
+		}
+		return "🖼 Requires proof: off"
+	}
+	if required {
+		return "🖼 نیاز به مدرک: روشن"
+	}
+	return "🖼 نیاز به مدرک: خاموش"
 }
 
 // DeleteConfirmKeyboard is the two step delete confirmation.

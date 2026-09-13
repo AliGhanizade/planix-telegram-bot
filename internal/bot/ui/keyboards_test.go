@@ -82,10 +82,16 @@ func TestTaskCardKeyboardColoredButtons(t *testing.T) {
 		t.Error("pending task card must not have reopen button")
 	}
 
-	completed := &domain.Task{BaseModel: domain.BaseModel{ID: id}, Title: "تست", Status: "completed"}
+	completed := &domain.Task{BaseModel: domain.BaseModel{ID: id}, Title: "تست", Status: "completed", RequiresEvidence: true}
 	kb = TaskCardKeyboard(completed, NoOrigin, Fa, false)
 	if !hasStyledButton(kb, "🔄 بازگشایی تسک", StylePrimary) {
-		t.Error("completed task card must have blue reopen button")
+		t.Error("completed evidence task card must have blue reopen button")
+	}
+	// without the evidence flag there is no reopen button
+	plain := &domain.Task{BaseModel: domain.BaseModel{ID: id}, Title: "تست", Status: "completed"}
+	kb = TaskCardKeyboard(plain, NoOrigin, Fa, false)
+	if hasButton(kb, "🔄 بازگشایی تسک") {
+		t.Error("reopen button must be hidden without the evidence flag")
 	}
 	if hasButton(kb, "✅ انجام شد") {
 		t.Error("completed task card must not have done button")
@@ -99,7 +105,7 @@ func TestTaskListKeyboardFiltersAndPagination(t *testing.T) {
 	}
 	kb := TaskListKeyboard(tasks, FilterPending, 2, 3, Fa)
 
-	if !hasButton(kb, "● ⏳ باز") {
+	if !hasButton(kb, "● 🧑 باز") {
 		t.Error("active filter tab should be marked")
 	}
 	if !hasButton(kb, "⬅️ قبلی") || !hasButton(kb, "بعدی ➡️") {

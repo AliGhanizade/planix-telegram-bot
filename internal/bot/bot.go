@@ -117,11 +117,13 @@ func (b *Bot) ProcessUpdate(ctx context.Context, u *models.Update) {
 
 // ---------- send helpers ----------
 
-// send sends a message with the given markup.
+// send sends a message with the given markup in html parse mode.
+// all user provided text must go through ui.Esc before reaching here.
 func (b *Bot) send(ctx context.Context, chatID int64, text string, markup models.ReplyMarkup) (*models.Message, error) {
 	return b.api.SendMessage(ctx, &tgbot.SendMessageParams{
 		ChatID:      chatID,
 		Text:        text,
+		ParseMode:   models.ParseModeHTML,
 		ReplyMarkup: markup,
 	})
 }

@@ -104,3 +104,49 @@ func (r *TaskRepository) Reassign(c context.Context, id, userID uuid.UUID) error
 func (r *TaskRepository) Delete(c context.Context, id uuid.UUID) error {
 	return r.db.WithContext(c).Delete(&domain.Task{}, "id = ?", id).Error
 }
+
+func (r *TaskRepository) CountMine(c context.Context, id uuid.UUID, status string) (int64, error) {
+	var n int64
+	q := r.db.WithContext(c).Model(&domain.Task{}).Where("assignee_id = ? AND owner_id = ?", id, id)
+	if status != "" {
+		q = q.Where("status = ?", status)
+	}
+	return n, q.Count(&n).Error
+}
+
+func (r *TaskRepository) ListMinePaged(c context.Context, id uuid.UUID, status string, limit, offset int) ([]domain.Task, error) {
+	var v []domain.Task
+	q := r.db.WithContext(c).Where("assignee_id = ? AND owner_id = ?", id, id)
+	if status != "" {
+		q = q.Where("status = ?", status)
+	}
+	return v, q.Order("created_at desc").Limit(limit).Offset(offset).Find(&v).Error
+}
+
+func (r *TaskRepository) CountDelegatedToMe(c context.Context, id uuid.UUID) (int64, error) {
+	var n int64
+	return n, r.db.WithContext(c).Model(&domain.Task{}).
+		Where("assignee_id = ? AND owner_id <> ? AND status = ?", id, id, "pending").
+		Count(&n).Error
+}
+
+func (r *TaskRepository) ListDelegatedToMePaged(c context.Context, id uuid.UUID, limit, offset int) ([]domain.Task, error) {
+	var v []domain.Task
+	return v, r.db.WithContext(c).
+		Where("assignee_id = ? AND owner_id <> ? AND status = ?", id, id, "pending").
+		Order("created_at desc").Limit(limit).Offset(offset).Find(&v).Error
+}
+
+func (r *TaskRepository) CountHelpdesk(c context.Context, id uuid.UUID) (int64, error) {
+	var n int64
+	return n, r.db.WithContext(c).Model(&domain.Task{}).
+		Where("owner_id = ? AND assignee_id <> ? AND status = ?", id, id, "pending").
+		Count(&n).Error
+}
+
+func (r *TaskRepository) ListHelpdeskPaged(c context.Context, id uuid.UUID, limit, offset int) ([]domain.Task, error) {
+	var v []domain.Task
+	return v, r.db.WithContext(c).
+		Where("owner_id = ? AND assignee_id <> ? AND status = ?", id, id, "pending").
+		Order("created_at desc").Limit(limit).Offset(offset).Find(&v).Error
+}

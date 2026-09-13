@@ -2,12 +2,16 @@ package ui
 
 import (
 	"fmt"
+	"html"
 	"time"
 
 	"github.com/go-telegram/bot/models"
 )
 
 // All bot texts in persian and english. The user language picks the branch.
+
+// webURL is the web panel address shown in the help text.
+const webURL = "https://ag01.f1f.site"
 
 // WelcomeMessage builds the /start welcome message.
 func WelcomeMessage(me *models.User, l Lang) string {
@@ -16,7 +20,7 @@ func WelcomeMessage(me *models.User, l Lang) string {
 		name = "پلنیکس"
 	}
 	if me != nil && me.FirstName != "" {
-		name = me.FirstName
+		name = html.EscapeString(me.FirstName)
 	}
 	if l == En {
 		return fmt.Sprintf("Hi! I'm %s ✨\n\n"+
@@ -50,24 +54,42 @@ func MenuText(l Lang) string {
 func HelpMessage(l Lang) string {
 	if l == En {
 		return "ℹ️ Planix guide\n\n" +
-			"➕ New task — quick task entry\n" +
-			"📋 Today — open tasks with filters and pages\n" +
-			"🔍 Search — search task titles\n" +
-			"👥 Delegate — assign several tasks in one message\n" +
-			"📊 Delegated status — see what each person completed\n" +
-			"👤 Profile — your task stats\n" +
-			"⚙️ Settings — daily report, profile info, web panel link\n\n" +
-			"From the task card you can tick it, edit title, description, due date and priority, or delete it."
+			"<b>Tasks</b>\n" +
+			"• New task — quick task entry\n" +
+			"• Today — your own open tasks\n" +
+			"• From others — tasks delegated to you\n" +
+			"• Help desk — tasks you assigned to others\n" +
+			"• Search — search task titles\n\n" +
+			"<b>Delegation</b>\n" +
+			"• Delegate — assign several tasks in one message\n" +
+			"• Delegated status — see what each person completed\n\n" +
+			"<b>Proof</b>\n" +
+			"• Turn on Requires proof on a task card\n" +
+			"• The assignee sends a photo as proof\n" +
+			"• Only proof-required tasks can be reopened after completion\n\n" +
+			"<b>More</b>\n" +
+			"• Profile — your task stats\n" +
+			"• Settings — daily report, profile info, web panel link\n" +
+			"• Web panel: " + webURL
 	}
 	return "ℹ️ راهنمای پلنیکس\n\n" +
-		"➕ تسک جدید — ثبت سریع تسک برای خودت\n" +
-		"📋 برنامه امروز — فهرست کارهای باز با فیلتر و صفحه‌بندی\n" +
-		"🔍 جستجو — جستجوی عنوان بین همه‌ی تسک‌هایت\n" +
-		"👥 واگذاری تسک — ثبت چند تسک برای یک نفر در یک پیام\n" +
-		"📊 وضعیت وظایف دیگران — ببین هر نفر کدام تسک‌های تو را انجام داده\n" +
-		"👤 پروفایل — آمار تسک‌های تو\n" +
-		"⚙️ تنظیمات — گزارش روزانه، ویرایش اطلاعات و اتصال پنل وب\n\n" +
-		"از کارت هر تسک می‌توانی تیک بزنی، عنوان و توضیحات و موعد و اولویت را عوض کنی یا حذفش کنی."
+		"<b>تسک‌ها</b>\n" +
+		"• تسک جدید — ثبت سریع تسک برای خودت\n" +
+		"• باز (تسک‌های من) — کارهای خودت\n" +
+		"• از دیگران — تسک‌هایی که دیگران به تو واگذار کرده‌اند\n" +
+		"• هلپ‌دسک — تسک‌هایی که تو به دیگران داده‌ای و منتظر انجامشان هستی\n" +
+		"• جستجو — جستجوی عنوان بین همه‌ی تسک‌هایت\n\n" +
+		"<b>واگذاری</b>\n" +
+		"• واگذاری تسک — ثبت چند تسک برای یک نفر در یک پیام\n" +
+		"• وضعیت وظایف — ببین هر نفر کدام تسک‌های تو را انجام داده\n\n" +
+		"<b>مدرک</b>\n" +
+		"• از کارت تسک، «نیاز به مدرک» را روشن کن\n" +
+		"• مجری عکس مدرک را می‌فرستد\n" +
+		"• فقط تسک‌های نیازمند مدرک بعد از انجام، قابل بازگشایی هستند\n\n" +
+		"<b>بیشتر</b>\n" +
+		"• پروفایل — آمار تسک‌های تو\n" +
+		"• تنظیمات — گزارش روزانه، ویرایش اطلاعات و اتصال پنل وب\n" +
+		"• پنل وب: " + webURL
 }
 
 // AssignPrompt explains the delegation input format.
@@ -175,9 +197,9 @@ func CancelledToast(l Lang) string {
 // TaskSaved confirms a created task.
 func TaskSaved(title string, l Lang) string {
 	if l == En {
-		return fmt.Sprintf("✅ Task «%s» saved.\nTick it off from today's plan whenever it's done.", title)
+		return fmt.Sprintf("✅ Task <b>«%s»</b> saved.\nTick it off from today's plan whenever it's done.", html.EscapeString(title))
 	}
-	return fmt.Sprintf("✅ تسک «%s» ثبت شد.\nهر زمان انجامش دادی از برنامه‌ی امروز تیکش بزن.", title)
+	return fmt.Sprintf("✅ تسک <b>«%s»</b> ثبت شد.\nهر زمان انجامش دادی از برنامه‌ی امروز تیکش بزن.", html.EscapeString(title))
 }
 
 // TaskDoneToast is the toast after completing a task.
@@ -231,7 +253,7 @@ func InvalidTaskIDToast(l Lang) string {
 // OwnerDoneNotify tells the owner a delegated task was completed.
 func OwnerDoneNotify(actor, title string, l Lang) string {
 	if l == En {
-		return fmt.Sprintf("📣 %s completed the task «%s».", actor, title)
+		return fmt.Sprintf("📣 %s completed the task <b>«%s»</b>.", html.EscapeString(actor), html.EscapeString(title))
 	}
 	return fmt.Sprintf("📣 %s تسک «%s» را انجام داد.", actor, title)
 }
@@ -239,7 +261,7 @@ func OwnerDoneNotify(actor, title string, l Lang) string {
 // OwnerReopenedNotify tells the owner a delegated task was reopened.
 func OwnerReopenedNotify(actor, title string, l Lang) string {
 	if l == En {
-		return fmt.Sprintf("📣 %s reopened the task «%s».", actor, title)
+		return fmt.Sprintf("📣 %s reopened the task <b>«%s»</b>.", html.EscapeString(actor), html.EscapeString(title))
 	}
 	return fmt.Sprintf("📣 %s تسک «%s» را بازگشایی کرد.", actor, title)
 }
@@ -247,17 +269,17 @@ func OwnerReopenedNotify(actor, title string, l Lang) string {
 // AssignedNotify tells the assignee about new delegated tasks.
 func AssignedNotify(owner string, count int, l Lang) string {
 	if l == En {
-		return fmt.Sprintf("📣 Planix update\n%s assigned %d tasks to you:", owner, count)
+		return fmt.Sprintf("📣 Planix update\n%s assigned %d tasks to you:", html.EscapeString(owner), count)
 	}
-	return fmt.Sprintf("📣 گزارش پلنیکس\n%s %d تسک برای تو ثبت کرد:", owner, count)
+	return fmt.Sprintf("📣 گزارش پلنیکس\n%s %d تسک برای تو ثبت کرد:", html.EscapeString(owner), count)
 }
 
 // AssignedConfirm tells the owner the delegation worked.
 func AssignedConfirm(count int, assignee string, l Lang) string {
 	if l == En {
-		return fmt.Sprintf("%d tasks assigned to %s successfully ✅", count, assignee)
+		return fmt.Sprintf("%d tasks assigned to <b>%s</b> successfully ✅", count, html.EscapeString(assignee))
 	}
-	return fmt.Sprintf("ثبت %d تسک برای %s با موفقیت انجام شد ✅", count, assignee)
+	return fmt.Sprintf("ثبت %d تسک برای <b>%s</b> با موفقیت انجام شد ✅", count, html.EscapeString(assignee))
 }
 
 // UsernameNotFound is the reply for an unknown username.
@@ -295,17 +317,17 @@ func AssignFormatError(l Lang) string {
 // DelegatedEmpty says there are no delegated tasks yet.
 func DelegatedEmpty(target string, l Lang) string {
 	if l == En {
-		return fmt.Sprintf("You haven't delegated any tasks to %s yet.", target)
+		return fmt.Sprintf("You haven't delegated any tasks to %s yet.", html.EscapeString(target))
 	}
-	return fmt.Sprintf("تا کنون به %s تسکی واگذار نکرده‌ای.", target)
+	return fmt.Sprintf("تا کنون به %s تسکی واگذار نکرده‌ای.", html.EscapeString(target))
 }
 
 // DelegatedHeader opens the delegated status message.
 func DelegatedHeader(target string, l Lang) string {
 	if l == En {
-		return fmt.Sprintf("📊 Status of tasks delegated to %s:\n\n", target)
+		return fmt.Sprintf("📊 Status of tasks delegated to <b>%s</b>:\n\n", html.EscapeString(target))
 	}
-	return fmt.Sprintf("📊 وضعیت تسک‌های واگذارشده به %s:\n\n", target)
+	return fmt.Sprintf("📊 وضعیت تسک‌های واگذارشده به <b>%s</b>:\n\n", html.EscapeString(target))
 }
 
 // DelegatedOpenTitle is the open section title.
@@ -427,9 +449,9 @@ func IssueCodeError(l Lang) string {
 // SearchResultsHeader opens the search results message.
 func SearchResultsHeader(query string, l Lang) string {
 	if l == En {
-		return fmt.Sprintf("🔍 Search results for «%s»:\n\n", query)
+		return fmt.Sprintf("🔍 Search results for «%s»:\n\n", html.EscapeString(query))
 	}
-	return fmt.Sprintf("🔍 نتایج جستجو برای «%s»:\n\n", query)
+	return fmt.Sprintf("🔍 نتایج جستجو برای «%s»:\n\n", html.EscapeString(query))
 }
 
 // SearchEmpty is shown when search finds nothing.
@@ -459,9 +481,9 @@ func CardHeader(l Lang) string {
 // DeleteConfirmText builds the delete confirmation.
 func DeleteConfirmText(title string, l Lang) string {
 	if l == En {
-		return fmt.Sprintf("🗑 Delete the task «%s»?\nThis cannot be undone.", title)
+		return fmt.Sprintf("🗑 Delete the task <b>«%s»</b>?\nThis cannot be undone.", html.EscapeString(title))
 	}
-	return fmt.Sprintf("🗑 مطمئنی می‌خوای تسک «%s» را حذف کنی؟\nاین عمل قابل بازگشت نیست.", title)
+	return fmt.Sprintf("🗑 مطمئنی می‌خوای تسک <b>«%s»</b> را حذف کنی؟\nاین عمل قابل بازگشت نیست.", html.EscapeString(title))
 }
 
 // DeletedMessage is shown after a delete.
@@ -507,9 +529,9 @@ func EditDescToast(l Lang) string {
 // DuePickerText opens the due date picker.
 func DuePickerText(title string, l Lang) string {
 	if l == En {
-		return fmt.Sprintf("📅 Pick a due date for «%s»:", title)
+		return fmt.Sprintf("📅 Pick a due date for <b>«%s»</b>:", html.EscapeString(title))
 	}
-	return fmt.Sprintf("📅 موعد تسک «%s» را انتخاب کن:", title)
+	return fmt.Sprintf("📅 موعد تسک <b>«%s»</b> را انتخاب کن:", html.EscapeString(title))
 }
 
 // DueSetToast confirms the new due date.
@@ -531,9 +553,9 @@ func DueClearedToast(l Lang) string {
 // PriorityPickerText opens the priority picker.
 func PriorityPickerText(title string, l Lang) string {
 	if l == En {
-		return fmt.Sprintf("⚡ Pick a priority for «%s»:", title)
+		return fmt.Sprintf("⚡ Pick a priority for <b>«%s»</b>:", html.EscapeString(title))
 	}
-	return fmt.Sprintf("⚡ اولویت تسک «%s» را انتخاب کن:", title)
+	return fmt.Sprintf("⚡ اولویت تسک <b>«%s»</b> را انتخاب کن:", html.EscapeString(title))
 }
 
 // PrioritySetToast confirms the new priority.
@@ -587,9 +609,9 @@ func DailyReportCount(count int, l Lang) string {
 // ReminderText builds the due date reminder.
 func ReminderText(title, human, due string, l Lang) string {
 	if l == En {
-		return fmt.Sprintf("⏳ Planix reminder\n\nThe task «%s» is due %s.\n📅 Due: %s", title, human, due)
+		return fmt.Sprintf("⏳ Planix reminder\n\nThe task <b>«%s»</b> is due %s.\n📅 Due: %s", html.EscapeString(title), human, due)
 	}
-	return fmt.Sprintf("⏳ یادآوری پلنیکس\n\nتسک «%s» تا %s دیگر موعدش تمام می‌شود.\n📅 موعد: %s", title, human, due)
+	return fmt.Sprintf("⏳ یادآوری پلنیکس\n\nتسک <b>«%s»</b> تا %s دیگر موعدش تمام می‌شود.\n📅 موعد: %s", html.EscapeString(title), human, due)
 }
 
 // HumanDuration renders a duration in words.
@@ -636,20 +658,6 @@ func PhotoSaved(l Lang) string {
 	return "✅ عکس مدرک ذخیره شد."
 }
 
-// ProofLine shows the proof status on the task card.
-func ProofLine(has bool, l Lang) string {
-	if l == En {
-		if has {
-			return "📷 Proof: yes ✅"
-		}
-		return "📷 Proof: no ❌"
-	}
-	if has {
-		return "📷 مدرک: دارد ✅"
-	}
-	return "📷 مدرک: ندارد ❌"
-}
-
 // PhotoCaption captions a proof photo.
 func PhotoCaption(title string, l Lang) string {
 	if l == En {
@@ -672,4 +680,18 @@ func NoTaskForPhoto(l Lang) string {
 		return "Tap the 📷 button on a task card first, then send the photo."
 	}
 	return "برای ثبت عکس، اول از کارت تسک دکمه 📷 را بزن."
+}
+
+// EvidenceToast confirms the proof requirement toggle.
+func EvidenceToast(required bool, l Lang) string {
+	if l == En {
+		if required {
+			return "Proof requirement on ✅"
+		}
+		return "Proof requirement off ❌"
+	}
+	if required {
+		return "نیاز به مدرک روشن شد ✅"
+	}
+	return "نیاز به مدرک خاموش شد ❌"
 }

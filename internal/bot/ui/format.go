@@ -2,9 +2,13 @@ package ui
 
 import (
 	"fmt"
+	"html"
 
 	"github.com/AliGhanizade/planix-telegram-bot/internal/domain"
 )
+
+// Esc escapes user text for safe html parse mode.
+func Esc(s string) string { return html.EscapeString(s) }
 
 // PriorityLabels maps priority codes to per language labels.
 var PriorityLabels = map[string]map[Lang]string{
@@ -60,13 +64,36 @@ func DueLabel(task *domain.Task, l Lang) string {
 	return task.DueAt.Format("01-02 15:04")
 }
 
-// FormatTask builds the full task card.
+// ProofLine shows the proof status on the task card.
+func ProofLine(has bool, l Lang) string {
+	if l == En {
+		if has {
+			return "📷 <b>Proof:</b> yes ✅"
+		}
+		return "📷 <b>Proof:</b> no ❌"
+	}
+	if has {
+		return "📷 <b>مدرک:</b> دارد ✅"
+	}
+	return "📷 <b>مدرک:</b> ندارد ❌"
+}
+
+// PeopleLine shows who owns and who executes a delegated task.
+func PeopleLine(owner, assignee string, l Lang) string {
+	if l == En {
+		return fmt.Sprintf("👤 <b>Owner:</b> %s   🛠 <b>Assignee:</b> %s", owner, assignee)
+	}
+	return fmt.Sprintf("👤 <b>مالک:</b> %s   🛠 <b>مجری:</b> %s", owner, assignee)
+}
+
+// FormatTask builds the full task card in html.
 func FormatTask(task *domain.Task, l Lang) string {
+	title := html.EscapeString(task.Title)
+	description := html.EscapeString(task.Description)
 	completed := "-"
 	if task.CompletedAt != nil {
 		completed = task.CompletedAt.Format("01-02 15:04")
 	}
-	description := task.Description
 	if description == "" {
 		if l == En {
 			description = "none"
@@ -79,43 +106,49 @@ func FormatTask(task *domain.Task, l Lang) string {
 		evidence = "✅"
 	}
 
+	needProof := "❌"
+	if task.RequiresEvidence {
+		needProof = "✅"
+	}
 	if l == En {
-		return fmt.Sprintf(`📝 Title: %s
-📄 Description: %s
-⚡ Priority: %s   📌 Status: %s
-📅 Due: %s
-📷 Needs proof: %s
-✅ Completed at: %s
+		return fmt.Sprintf(`📝 <b>Title:</b> <b>%s</b>
+📄 <b>Description:</b> %s
+⚡ <b>Priority:</b> %s   📌 <b>Status:</b> %s
+📅 <b>Due:</b> %s
+📷 <b>Photo proof:</b> %s   🖼 <b>Requires proof:</b> %s
+✅ <b>Completed at:</b> %s
 `,
-			task.Title,
+			title,
 			description,
 			PriorityLabel(task.Priority, l),
 			StatusLabel(task.Status, l),
 			DueLabel(task, l),
 			evidence,
+			needProof,
 			completed,
 		)
 	}
-	return fmt.Sprintf(`📝 عنوان: %s
-📄 توضیحات: %s
-⚡ اولویت: %s   📌 وضعیت: %s
-📅 موعد: %s
-📷 نیاز به مدرک: %s
-✅ زمان انجام: %s
+	return fmt.Sprintf(`📝 <b>عنوان:</b> <b>%s</b>
+📄 <b>توضیحات:</b> %s
+⚡ <b>اولویت:</b> %s   📌 <b>وضعیت:</b> %s
+📅 <b>موعد:</b> %s
+📷 <b>عکس مدرک:</b> %s   🖼 <b>نیاز به مدرک:</b> %s
+✅ <b>زمان انجام:</b> %s
 `,
-		task.Title,
+		title,
 		description,
 		PriorityLabel(task.Priority, l),
 		StatusLabel(task.Status, l),
 		DueLabel(task, l),
 		evidence,
+		needProof,
 		completed,
 	)
 }
 
 // FormatSmallInfo builds a one line summary for lists.
 func FormatSmallInfo(task *domain.Task, l Lang) string {
-	line := fmt.Sprintf("%s %s — %s", StatusEmoji(task.Status), task.Title, PriorityLabel(task.Priority, l))
+	line := fmt.Sprintf("%s <b>%s</b> — %s", StatusEmoji(task.Status), html.EscapeString(task.Title), PriorityLabel(task.Priority, l))
 	if task.DueAt != nil {
 		line += " — 📅 " + task.DueAt.Format("01-02 15:04")
 	}

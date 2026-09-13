@@ -181,7 +181,8 @@ func (t TaskStats) CompletionRate() float64 {
 	return float64(t.Completed) / float64(total) * 100
 }
 
-// Reopen reopens a completed task.
+// Reopen reopens a completed task. Only tasks that require evidence
+// can be reopened, so the assignee sends a new proof.
 func (s *TaskService) Reopen(ctx context.Context, taskID uuid.UUID) (*domain.Task, error) {
 	task, err := s.tasks.GetByID(ctx, taskID)
 	if err != nil {
@@ -189,6 +190,9 @@ func (s *TaskService) Reopen(ctx context.Context, taskID uuid.UUID) (*domain.Tas
 	}
 	if task.Status == "pending" {
 		return task, nil
+	}
+	if !task.RequiresEvidence {
+		return nil, fmt.Errorf("reopen is only allowed for tasks that require evidence")
 	}
 	if err = s.tasks.Reopen(ctx, taskID); err != nil {
 		return nil, err
@@ -231,24 +235,41 @@ func (s *TaskService) UpdateDueAt(ctx context.Context, taskID uuid.UUID, due *ti
 	return s.log(ctx, &task.OwnerID, "task", task.ID, "updated_due", nil)
 }
 
-// ListFiltered returns user tasks with status filter and pagination.
-// filter is one of pending, completed or all.
+// ListFiltered returns user tasks with filter and pagination.
+// filter is one of pending (own), from_others, helpdesk, completed, cancelled or all.
 func (s *TaskService) ListFiltered(ctx context.Context, userID uuid.UUID, filter string, page, size int) ([]domain.Task, int64, error) {
-	status := ""
-	switch filter {
-	case "pending":
-		status = "pending"
-	case "completed":
-		status = "completed"
-	}
 	if page < 1 {
 		page = 1
 	}
-	total, err := s.tasks.CountByAssigneeAndStatus(ctx, userID, status)
-	if err != nil {
-		return nil, 0, err
+	offset := (page - 1) * size
+
+	var tasks []domain.Task
+	var total int64
+	var err error
+
+	switch filter {
+	case "from_others":
+		if total, err = s.tasks.CountDelegatedToMe(ctx, userID); err == nil {
+			tasks, err = s.tasks.ListDelegatedToMePaged(ctx, userID, size, offset)
+		}
+	case "helpdesk":
+		if total, err = s.tasks.CountHelpdesk(ctx, userID); err == nil {
+			tasks, err = s.tasks.ListHelpdeskPaged(ctx, userID, size, offset)
+		}
+	default:
+		status := ""
+		switch filter {
+		case "completed":
+			status = "completed"
+		case "cancelled":
+			status = "cancelled"
+		case "pending":
+			status = "pending"
+		}
+		if total, err = s.tasks.CountMine(ctx, userID, status); err == nil {
+			tasks, err = s.tasks.ListMinePaged(ctx, userID, status, size, offset)
+		}
 	}
-	tasks, err := s.tasks.ListByAssigneePaged(ctx, userID, status, size, (page-1)*size)
 	return tasks, total, err
 }
 
@@ -280,6 +301,22 @@ func (s *TaskService) Stats(ctx context.Context, userID uuid.UUID) (*TaskStats, 
 // DueSoon returns tasks due soon that have not been reminded yet.
 func (s *TaskService) DueSoon(ctx context.Context, from, to time.Time) ([]domain.Task, error) {
 	return s.tasks.ListDueSoon(ctx, from, to)
+}
+
+// SetEvidenceRequired turns the evidence requirement of a task on or off.
+func (s *TaskService) SetEvidenceRequired(ctx context.Context, taskID uuid.UUID, required bool) error {
+	task, err := s.GetByID(ctx, taskID)
+	if err != nil {
+		return err
+	}
+	if err := s.tasks.SetEvidenceRequired(ctx, taskID, required); err != nil {
+		return err
+	}
+	action := "evidence_off"
+	if required {
+		action = "evidence_on"
+	}
+	return s.log(ctx, &task.OwnerID, "task", task.ID, action, nil)
 }
 
 // MarkReminded marks that a reminder was sent for a task.

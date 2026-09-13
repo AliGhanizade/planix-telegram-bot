@@ -86,6 +86,10 @@ func (b *Bot) cbTask(ctx context.Context, q *models.CallbackQuery) {
 		// task:viewproof:<id>[:origin]
 		b.cbTaskViewProof(ctx, q, parts[2], chatID, messageID, l)
 
+	case "evidence":
+		// task:evidence:<id>[:origin]
+		b.cbTaskEvidenceToggle(ctx, q, parts[2], chatID, messageID, l)
+
 	case "edit":
 		// task:edit:<what>:<id>[:origin]
 		if len(parts) < 4 {
@@ -424,5 +428,34 @@ func (b *Bot) cbTaskViewProof(ctx context.Context, q *models.CallbackQuery, rawI
 	})
 	if err != nil {
 		b.log.Error("send proof photo failed", zap.Error(err))
+	}
+}
+
+// cbTaskEvidenceToggle turns the proof requirement on or off.
+func (b *Bot) cbTaskEvidenceToggle(ctx context.Context, q *models.CallbackQuery, rawID string, chatID int64, messageID int, l ui.Lang) {
+	id, err := uuid.Parse(rawID)
+	if err != nil {
+		b.answerAlert(ctx, q, ui.InvalidTaskIDToast(l))
+		return
+	}
+	origin, err := ui.ParseTaskOrigin(ui.SplitCallback(q.Data), 3)
+	if err != nil {
+		b.answer(ctx, q, "")
+		return
+	}
+	task, err := b.tasks.GetByID(ctx, id)
+	if err != nil {
+		b.answerAlert(ctx, q, ui.TaskNotFoundToast(l))
+		return
+	}
+	newValue := !task.RequiresEvidence
+	if err := b.tasks.SetEvidenceRequired(ctx, id, newValue); err != nil {
+		b.log.Error("set evidence failed", zap.Error(err))
+		b.answer(ctx, q, ui.ErrGeneric(l))
+		return
+	}
+	b.answer(ctx, q, ui.EvidenceToast(newValue, l))
+	if err := b.renderTaskCard(ctx, chatID, messageID, id, origin, l); err != nil {
+		b.log.Error("render task card failed", zap.Error(err))
 	}
 }

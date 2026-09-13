@@ -14,48 +14,77 @@ type ListFilter string
 
 // task list filter values.
 const (
-	FilterPending   ListFilter = "pending"
-	FilterCompleted ListFilter = "completed"
-	FilterAll       ListFilter = "all"
+	FilterPending    ListFilter = "pending"
+	FilterFromOthers ListFilter = "from_others"
+	FilterHelpdesk   ListFilter = "helpdesk"
+	FilterCompleted  ListFilter = "completed"
+	FilterCancelled  ListFilter = "cancelled"
+	FilterAll        ListFilter = "all"
 )
 
 // Label is the display name of the filter.
 func (f ListFilter) Label(l Lang) string {
-	if f == FilterCompleted {
-		if l == En {
-			return "Completed"
-		}
-		return "انجام‌شده‌ها"
-	}
-	if f == FilterAll {
-		if l == En {
-			return "All tasks"
-		}
-		return "همه‌ی تسک‌ها"
-	}
 	if l == En {
-		return "Today's plan"
+		switch f {
+		case FilterFromOthers:
+			return "From others"
+		case FilterHelpdesk:
+			return "Help desk"
+		case FilterCompleted:
+			return "Completed"
+		case FilterCancelled:
+			return "Cancelled"
+		case FilterAll:
+			return "All tasks"
+		default:
+			return "My tasks"
+		}
 	}
-	return "برنامه امروز"
+	switch f {
+	case FilterFromOthers:
+		return "از دیگران"
+	case FilterHelpdesk:
+		return "هلپ‌دسک"
+	case FilterCompleted:
+		return "انجام‌شده‌ها"
+	case FilterCancelled:
+		return "لغوشده‌ها"
+	case FilterAll:
+		return "همه‌ی تسک‌ها"
+	default:
+		return "تسک‌های من"
+	}
 }
 
 // EmptyText is the message shown for an empty list.
 func (f ListFilter) EmptyText(l Lang) string {
 	if l == En {
 		switch f {
+		case FilterFromOthers:
+			return "Nobody has delegated a task to you yet."
+		case FilterHelpdesk:
+			return "You haven't delegated anything yet; nothing to track."
 		case FilterCompleted:
-			return "You haven't finished anything yet; now is a good start 💪"
+			return "You haven't finished anything yet; now is a good start."
+		case FilterCancelled:
+			return "Nothing cancelled."
 		case FilterAll:
-			return "No tasks yet. Start with ➕ New task!"
+			return "No tasks yet. Start with New task!"
 		default:
-			return "No open tasks today; a fresh start awaits ✨"
+			return "No open tasks today; a fresh start awaits."
 		}
 	}
 	switch f {
+	case FilterFromOthers:
+		return "هنوز کسی تسکی به تو واگذار نکرده است."
+	case FilterHelpdesk:
+		return "هنوز چیزی برای پیگیری نداری."
 	case FilterCompleted:
 		return "هنوز تسکی را تمام نکرده‌ای؛ یک شروع خوب، همین حالاست 💪"
+	case FilterCancelled:
+		return "تسک لغوشده‌ای نداری."
 	case FilterAll:
-		return "هنوز تسکی نساخته‌ای. با ➕ تسک جدید شروع کن!"
+		return "هنوز تسکی نساخته‌ای. با تسک جدید شروع کن!"
 	default:
 		return "امروز تسک بازی نداری؛ وقت یک شروع تازه است ✨"
 	}
@@ -64,8 +93,14 @@ func (f ListFilter) EmptyText(l Lang) string {
 // ParseListFilter reads a filter from callback data.
 func ParseListFilter(s string) ListFilter {
 	switch s {
+	case string(FilterFromOthers):
+		return FilterFromOthers
+	case string(FilterHelpdesk):
+		return FilterHelpdesk
 	case string(FilterCompleted):
 		return FilterCompleted
+	case string(FilterCancelled):
+		return FilterCancelled
 	case string(FilterAll):
 		return FilterAll
 	default:
