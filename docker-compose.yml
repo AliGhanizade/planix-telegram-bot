@@ -28,13 +28,14 @@ services:
     restart: unless-stopped
 
   # web panel: static files + /api proxy to the bot container
+  # direct access without https: http://SERVER-IP:8081
   web:
     build: ./web
     container_name: planix-web
     depends_on:
       - bot
     ports:
-      - "80:80"
+      - "8081:80"
     restart: unless-stopped
 
   # optional https: run with  docker compose --profile tls up -d
