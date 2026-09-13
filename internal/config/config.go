@@ -19,6 +19,7 @@ type Config struct {
 	DailyReportCron       string
 	ReminderCron          string
 	ReminderLeadMinutes   int
+	WebCORSOrigin         string
 }
 
 // Load تنظیمات را می‌خواند و مقادیر اجباری را بررسی می‌کند.
@@ -35,6 +36,7 @@ func Load() (Config, error) {
 		DailyReportCron:       env("DAILY_REPORT_CRON", "0 0 21 * * *"),
 		ReminderCron:          env("REMINDER_CRON", "0 */15 * * * *"),
 		ReminderLeadMinutes:   envInt("REMINDER_LEAD_MINUTES", 120),
+		WebCORSOrigin:         env("WEB_CORS_ORIGIN", "*"),
 	}
 	if c.TelegramBotToken == "" {
 		return c, fmt.Errorf("TELEGRAM_BOT_TOKEN is required")

@@ -32,11 +32,11 @@ func New() (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	log, err := logger.New(c.LogLevel)
+	log, err := logger.New(c.LogLevel, c.AppEnv)
 	if err != nil {
 		return nil, err
 	}
-	db, err := database.Open(c.DatabaseURL)
+	db, err := database.Open(c.DatabaseURL, log)
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}

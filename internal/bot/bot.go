@@ -81,6 +81,7 @@ func (b *Bot) onUpdate(ctx context.Context, u *models.Update) {
 		}
 	}()
 
+	b.log.Debug("telegram update received", zap.Int64("update_id", u.ID))
 	switch {
 	case u.Message != nil && u.Message.Text != "":
 		b.onText(ctx, u.Message)
