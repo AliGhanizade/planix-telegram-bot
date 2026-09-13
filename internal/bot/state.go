@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AliGhanizade/planix-telegram-bot/internal/bot/ui"
 	"github.com/AliGhanizade/planix-telegram-bot/internal/domain"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -38,7 +39,7 @@ type sessionData struct {
 }
 
 // cardBackRef مبدأ کارت را به backRef تبدیل می‌کند.
-func cardBackRef(chatID int64, messageID int, o taskOrigin) *backRef {
+func cardBackRef(chatID int64, messageID int, o ui.TaskOrigin) *backRef {
 	ref := &backRef{Kind: "card", ChatID: chatID, MessageID: messageID}
 	if o.List {
 		ref.Filter = o.Filter
@@ -47,12 +48,12 @@ func cardBackRef(chatID int64, messageID int, o taskOrigin) *backRef {
 	return ref
 }
 
-// origin مبدأ ذخیره‌شده را به taskOrigin تبدیل می‌کند.
-func (r *backRef) origin() taskOrigin {
+// origin مبدأ ذخیره‌شده را به ui.TaskOrigin تبدیل می‌کند.
+func (r *backRef) origin() ui.TaskOrigin {
 	if r == nil || r.Filter == "" {
-		return noOrigin
+		return ui.NoOrigin
 	}
-	return taskOrigin{List: true, Filter: r.Filter, Page: r.Page}
+	return ui.TaskOrigin{List: true, Filter: r.Filter, Page: r.Page}
 }
 
 // setSession وضعیت مکالمه و داده‌ی آن را برای ۳۰ دقیقه ذخیره می‌کند.
@@ -141,7 +142,7 @@ func (b *Bot) handleTitleInput(ctx context.Context, u *domain.User, session doma
 	}
 	_, err := b.send(ctx, u.TelegramID,
 		fmt.Sprintf("✅ تسک «%s» ثبت شد.\nهر زمان انجامش دادی از برنامه‌ی امروز تیکش بزن.", task.Title),
-		TodayInlineKeyboard())
+		ui.TodayInlineKeyboard())
 	return err
 }
 
@@ -182,10 +183,10 @@ func (b *Bot) handleSearchInput(ctx context.Context, u *domain.User, session dom
 		header += "چیزی پیدا نشد 🤷"
 	} else {
 		for _, t := range tasks {
-			header += FormatSmallInfo(&t) + "\n"
+			header += ui.FormatSmallInfo(&t) + "\n"
 		}
 	}
-	_, err = b.send(ctx, chatID, header, SearchResultsKeyboard(tasks))
+	_, err = b.send(ctx, chatID, header, ui.SearchResultsKeyboard(tasks))
 	return err
 }
 
@@ -193,17 +194,17 @@ func (b *Bot) handleSearchInput(ctx context.Context, u *domain.User, session dom
 func (b *Bot) handleAssignInput(ctx context.Context, u *domain.User, text string, chatID int64) error {
 	lines := strings.Split(text, "\n")
 	if len(lines) < 2 {
-		_, err := b.send(ctx, chatID, "لطفا یوزرنیم را در خط اول و هر تسک را در یک خط جدا بفرست.", CancelInlineKeyboard())
+		_, err := b.send(ctx, chatID, "لطفا یوزرنیم را در خط اول و هر تسک را در یک خط جدا بفرست.", ui.CancelInlineKeyboard())
 		return err
 	}
 	username := strings.TrimPrefix(strings.TrimSpace(lines[0]), "@")
 	target, err := b.users.GetByUsername(ctx, username)
 	if err != nil {
-		_, err := b.send(ctx, chatID, "یوزرنیم پیدا نشد. لطفا دوباره امتحان کن.", CancelInlineKeyboard())
+		_, err := b.send(ctx, chatID, "یوزرنیم پیدا نشد. لطفا دوباره امتحان کن.", ui.CancelInlineKeyboard())
 		return err
 	}
 	if target.ID == u.ID {
-		_, err := b.send(ctx, chatID, "نمی‌تونی تسک رو به خودت واگذار کنی 🙂", CancelInlineKeyboard())
+		_, err := b.send(ctx, chatID, "نمی‌تونی تسک رو به خودت واگذار کنی 🙂", ui.CancelInlineKeyboard())
 		return err
 	}
 	if err := b.setTaskForOther(ctx, u.ID, target.ID, lines[1:], "normal"); err != nil {
@@ -217,7 +218,7 @@ func (b *Bot) handleStatusInput(ctx context.Context, u *domain.User, text string
 	username := strings.TrimPrefix(strings.TrimSpace(text), "@")
 	target, err := b.users.GetByUsername(ctx, username)
 	if err != nil {
-		_, err := b.send(ctx, chatID, "یوزرنیم پیدا نشد. لطفا دوباره امتحان کن.", CancelInlineKeyboard())
+		_, err := b.send(ctx, chatID, "یوزرنیم پیدا نشد. لطفا دوباره امتحان کن.", ui.CancelInlineKeyboard())
 		return err
 	}
 	if err := b.clearSession(ctx, u.ID); err != nil {

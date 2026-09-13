@@ -5,70 +5,23 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/AliGhanizade/planix-telegram-bot/internal/bot/ui"
 	"github.com/AliGhanizade/planix-telegram-bot/internal/domain"
 	"github.com/go-telegram/bot/models"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
-// pageSize تعداد تسک در هر صفحه‌ی فهرست است.
-const pageSize = 5
-
-// listFilter فیلتر وضعیت فهرست تسک‌ها.
-type listFilter string
-
-const (
-	filterPending   listFilter = "pending"
-	filterCompleted listFilter = "completed"
-	filterAll       listFilter = "all"
-)
-
-// label عنوان فارسی فیلتر.
-func (f listFilter) label() string {
-	switch f {
-	case filterCompleted:
-		return "انجام‌شده‌ها"
-	case filterAll:
-		return "همه‌ی تسک‌ها"
-	default:
-		return "برنامه امروز"
-	}
-}
-
-// emptyText پیام حالت خالی فیلتر.
-func (f listFilter) emptyText() string {
-	switch f {
-	case filterCompleted:
-		return "هنوز تسکی را تمام نکرده‌ای؛ یک شروع خوب، همین حالاست 💪"
-	case filterAll:
-		return "هنوز تسکی نساخته‌ای. با ➕ تسک جدید شروع کن!"
-	default:
-		return "امروز تسک بازی نداری؛ وقت یک شروع تازه است ✨"
-	}
-}
-
-// parseListFilter فیلتر را از دیتای کال‌بک می‌خواند.
-func parseListFilter(s string) listFilter {
-	switch s {
-	case string(filterCompleted):
-		return filterCompleted
-	case string(filterAll):
-		return filterAll
-	default:
-		return filterPending
-	}
-}
-
 // cbList کال‌بک‌های list:* (ناوبری فهرست تسک‌ها) را پردازش می‌کند.
 func (b *Bot) cbList(ctx context.Context, q *models.CallbackQuery) {
 	// فرمت: list:tasks:<filter>:<page>
-	parts := splitCallback(q.Data)
+	parts := ui.SplitCallback(q.Data)
 	if len(parts) < 4 {
 		b.answer(ctx, q, "")
 		return
 	}
-	f := parseListFilter(parts[2])
-	page := atoiOr(parts[3], 1)
+	f := ui.ParseListFilter(parts[2])
+	page := ui.AtoiOr(parts[3], 1)
 
 	u, err := b.upsertUser(ctx, q.From)
 	if err != nil {
@@ -89,13 +42,13 @@ func (b *Bot) cbList(ctx context.Context, q *models.CallbackQuery) {
 
 // renderTaskList فهرست تسک‌های کاربر را با فیلتر و صفحه‌بندی رندر می‌کند.
 // اگر messageID بزرگ‌تر از صفر باشد همان پیام درجا ویرایش می‌شود (سینک UI).
-func (b *Bot) renderTaskList(ctx context.Context, chatID int64, messageID int, userID uuid.UUID, f listFilter, page int) error {
-	tasks, total, err := b.tasks.ListFiltered(ctx, userID, string(f), page, pageSize)
+func (b *Bot) renderTaskList(ctx context.Context, chatID int64, messageID int, userID uuid.UUID, f ui.ListFilter, page int) error {
+	tasks, total, err := b.tasks.ListFiltered(ctx, userID, string(f), page, ui.PageSize)
 	if err != nil {
 		return err
 	}
 
-	pages := int(math.Ceil(float64(total) / float64(pageSize)))
+	pages := int(math.Ceil(float64(total) / float64(ui.PageSize)))
 	if pages < 1 {
 		pages = 1
 	}
@@ -103,27 +56,27 @@ func (b *Bot) renderTaskList(ctx context.Context, chatID int64, messageID int, u
 		page = pages
 	}
 
-	text := fmt.Sprintf("📋 %s — صفحه‌ی %d از %d\n\n", f.label(), page, pages)
+	text := fmt.Sprintf("📋 %s — صفحه‌ی %d از %d\n\n", f.Label(), page, pages)
 	if len(tasks) == 0 {
-		text += f.emptyText()
+		text += f.EmptyText()
 	} else {
 		for i, t := range tasks {
-			text += fmt.Sprintf("%d. %s\n", (page-1)*pageSize+i+1, FormatSmallInfo(&t))
+			text += fmt.Sprintf("%d. %s\n", (page-1)*ui.PageSize+i+1, ui.FormatSmallInfo(&t))
 		}
 	}
 
-	markup := TaskListKeyboard(tasks, f, page, pages)
+	markup := ui.TaskListKeyboard(tasks, f, page, pages)
 	return b.render(ctx, chatID, messageID, text, markup)
 }
 
 // renderTaskCard کارت کامل تسک را با دکمه‌های مدیریتی رندر می‌کند.
-func (b *Bot) renderTaskCard(ctx context.Context, chatID int64, messageID int, taskID uuid.UUID, o taskOrigin) error {
+func (b *Bot) renderTaskCard(ctx context.Context, chatID int64, messageID int, taskID uuid.UUID, o ui.TaskOrigin) error {
 	task, err := b.tasks.GetByID(ctx, taskID)
 	if err != nil {
 		return err
 	}
-	text := "🗂 کارت تسک\n\n" + FormatTask(task)
-	return b.render(ctx, chatID, messageID, text, TaskCardKeyboard(task, o))
+	text := "🗂 کارت تسک\n\n" + ui.FormatTask(task)
+	return b.render(ctx, chatID, messageID, text, ui.TaskCardKeyboard(task, o))
 }
 
 // notifyOwner وقتی مجری تسکِ واگذارشده را انجام می‌دهد، مالک را خبر می‌کند.

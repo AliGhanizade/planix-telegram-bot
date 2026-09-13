@@ -1,4 +1,4 @@
-package bot
+package ui
 
 import (
 	"testing"
@@ -71,7 +71,7 @@ func TestTaskCardKeyboardColoredButtons(t *testing.T) {
 	id := uuid.New()
 
 	pending := &domain.Task{BaseModel: domain.BaseModel{ID: id}, Title: "تست", Status: "pending"}
-	kb := TaskCardKeyboard(pending, noOrigin)
+	kb := TaskCardKeyboard(pending, NoOrigin)
 	if !hasStyledButton(kb, "✅ انجام شد", StyleSuccess) {
 		t.Error("pending task card must have green done button")
 	}
@@ -83,7 +83,7 @@ func TestTaskCardKeyboardColoredButtons(t *testing.T) {
 	}
 
 	completed := &domain.Task{BaseModel: domain.BaseModel{ID: id}, Title: "تست", Status: "completed"}
-	kb = TaskCardKeyboard(completed, noOrigin)
+	kb = TaskCardKeyboard(completed, NoOrigin)
 	if !hasStyledButton(kb, "🔄 بازگشایی تسک", StylePrimary) {
 		t.Error("completed task card must have blue reopen button")
 	}
@@ -97,7 +97,7 @@ func TestTaskListKeyboardFiltersAndPagination(t *testing.T) {
 		{BaseModel: domain.BaseModel{ID: uuid.New()}, Title: "یکی"},
 		{BaseModel: domain.BaseModel{ID: uuid.New()}, Title: "دو"},
 	}
-	kb := TaskListKeyboard(tasks, filterPending, 2, 3)
+	kb := TaskListKeyboard(tasks, FilterPending, 2, 3)
 
 	if !hasButton(kb, "● ⏳ باز") {
 		t.Error("active filter tab should be marked")
@@ -106,14 +106,14 @@ func TestTaskListKeyboardFiltersAndPagination(t *testing.T) {
 		t.Error("pagination buttons missing on middle page")
 	}
 
-	single := TaskListKeyboard(tasks, filterAll, 1, 1)
+	single := TaskListKeyboard(tasks, FilterAll, 1, 1)
 	if hasButton(single, "⬅️ قبلی") || hasButton(single, "بعدی ➡️") {
 		t.Error("pagination buttons should be hidden on single page")
 	}
 }
 
 func TestDeleteConfirmKeyboard(t *testing.T) {
-	kb := DeleteConfirmKeyboard(&domain.Task{BaseModel: domain.BaseModel{ID: uuid.New()}}, noOrigin)
+	kb := DeleteConfirmKeyboard(&domain.Task{BaseModel: domain.BaseModel{ID: uuid.New()}}, NoOrigin)
 	if !hasStyledButton(kb, "🗑 بله، حذف کن", StyleDanger) {
 		t.Error("confirm delete button must be danger styled")
 	}

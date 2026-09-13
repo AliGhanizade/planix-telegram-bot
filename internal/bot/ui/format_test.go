@@ -1,4 +1,4 @@
-package bot
+package ui
 
 import (
 	"strings"
@@ -16,21 +16,21 @@ func TestPriorityLabel(t *testing.T) {
 		"urgent": "🔴 فوری",
 	}
 	for in, want := range cases {
-		if got := priorityLabel(in); got != want {
-			t.Errorf("priorityLabel(%q) = %q, want %q", in, got, want)
+		if got := PriorityLabel(in); got != want {
+			t.Errorf("PriorityLabel(%q) = %q, want %q", in, got, want)
 		}
 	}
-	if got := priorityLabel("unknown"); got != "unknown" {
-		t.Errorf("priorityLabel fallback = %q, want raw value", got)
+	if got := PriorityLabel("unknown"); got != "unknown" {
+		t.Errorf("PriorityLabel fallback = %q, want raw value", got)
 	}
 }
 
 func TestStatusLabel(t *testing.T) {
-	if got := statusLabel("pending"); got != "⏳ در انتظار" {
-		t.Errorf("statusLabel(pending) = %q", got)
+	if got := StatusLabel("pending"); got != "⏳ در انتظار" {
+		t.Errorf("StatusLabel(pending) = %q", got)
 	}
-	if got := statusLabel("mystery"); got != "mystery" {
-		t.Errorf("statusLabel fallback = %q", got)
+	if got := StatusLabel("mystery"); got != "mystery" {
+		t.Errorf("StatusLabel fallback = %q", got)
 	}
 }
 
@@ -65,13 +65,13 @@ func TestFormatTask(t *testing.T) {
 
 func TestTruncate(t *testing.T) {
 	short := "تسک کوتاه"
-	if got := truncate(short, 20); got != short {
-		t.Errorf("truncate should not change short strings, got %q", got)
+	if got := Truncate(short, 20); got != short {
+		t.Errorf("Truncate should not change short strings, got %q", got)
 	}
 	long := strings.Repeat("الف", 50)
-	got := truncate(long, 10)
+	got := Truncate(long, 10)
 	if want := 10; len([]rune(got)) != want {
-		t.Errorf("truncate(%q, %d) has %d runes, want %d", "long", 10, len([]rune(got)), want)
+		t.Errorf("Truncate(long, %d) has %d runes, want %d", 10, len([]rune(got)), want)
 	}
 	if !strings.HasSuffix(got, "…") {
 		t.Error("truncated string should end with ellipsis")

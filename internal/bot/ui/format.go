@@ -1,4 +1,4 @@
-package bot
+package ui
 
 import (
 	"fmt"
@@ -6,23 +6,23 @@ import (
 	"github.com/AliGhanizade/planix-telegram-bot/internal/domain"
 )
 
-// priorityLabels برچسب فارسی اولویت‌ها.
-var priorityLabels = map[string]string{
+// PriorityLabels برچسب فارسی اولویت‌ها. برچسب فارسی اولویت‌ها.
+var PriorityLabels = map[string]string{
 	"low":    "🟢 کم",
 	"normal": "🟡 معمولی",
 	"high":   "🟠 زیاد",
 	"urgent": "🔴 فوری",
 }
 
-// statusLabels برچسب فارسی وضعیت‌ها.
-var statusLabels = map[string]string{
+// StatusLabels برچسب فارسی وضعیت‌ها. برچسب فارسی وضعیت‌ها.
+var StatusLabels = map[string]string{
 	"pending":   "⏳ در انتظار",
 	"completed": "✅ انجام شده",
 	"cancelled": "❌ لغو شده",
 }
 
 // statusEmoji نشان وضعیت برای فهرست‌ها.
-func statusEmoji(status string) string {
+func StatusEmoji(status string) string {
 	switch status {
 	case "completed":
 		return "✅"
@@ -33,24 +33,24 @@ func statusEmoji(status string) string {
 	}
 }
 
-// priorityLabel برچسب فارسی اولویت را برمی‌گرداند؛ در نبود برچسب، مقدار خام.
-func priorityLabel(priority string) string {
-	if label, ok := priorityLabels[priority]; ok {
+// PriorityLabel برچسب فارسی اولویت را برمی‌گرداند؛ در نبود برچسب، مقدار خام.
+func PriorityLabel(priority string) string {
+	if label, ok := PriorityLabels[priority]; ok {
 		return label
 	}
 	return priority
 }
 
-// statusLabel برچسب فارسی وضعیت را برمی‌گرداند.
-func statusLabel(status string) string {
-	if label, ok := statusLabels[status]; ok {
+// StatusLabel برچسب فارسی وضعیت را برمی‌گرداند.
+func StatusLabel(status string) string {
+	if label, ok := StatusLabels[status]; ok {
 		return label
 	}
 	return status
 }
 
-// dueLabel موعد تسک را به شکل خوانا برمی‌گرداند.
-func dueLabel(task *domain.Task) string {
+// DueLabel موعد تسک را به شکل خوانا برمی‌گرداند.
+func DueLabel(task *domain.Task) string {
 	if task.DueAt == nil {
 		return "ندارد"
 	}
@@ -81,9 +81,9 @@ func FormatTask(task *domain.Task) string {
 `,
 		task.Title,
 		description,
-		priorityLabel(task.Priority),
-		statusLabel(task.Status),
-		dueLabel(task),
+		PriorityLabel(task.Priority),
+		StatusLabel(task.Status),
+		DueLabel(task),
 		evidence,
 		completed,
 	)
@@ -91,7 +91,7 @@ func FormatTask(task *domain.Task) string {
 
 // FormatSmallInfo یک خط خلاصه برای فهرست‌ها می‌سازد.
 func FormatSmallInfo(task *domain.Task) string {
-	line := fmt.Sprintf("%s %s — %s", statusEmoji(task.Status), task.Title, priorityLabel(task.Priority))
+	line := fmt.Sprintf("%s %s — %s", StatusEmoji(task.Status), task.Title, PriorityLabel(task.Priority))
 	if task.DueAt != nil {
 		line += " — 📅 " + task.DueAt.Format("01-02 15:04")
 	}

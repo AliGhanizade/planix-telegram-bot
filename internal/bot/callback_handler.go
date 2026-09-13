@@ -3,20 +3,15 @@ package bot
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
+	"github.com/AliGhanizade/planix-telegram-bot/internal/bot/ui"
 	"github.com/AliGhanizade/planix-telegram-bot/internal/domain"
 	"github.com/go-telegram/bot/models"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
-
-// splitCallback دیتای کال‌بک را به اجزا می‌شکند.
-func splitCallback(data string) []string {
-	return strings.Split(data, ":")
-}
 
 // onCallback کال‌بک‌های دکمه‌های شیشه‌ای را بین هندلرها پخش می‌کند.
 func (b *Bot) onCallback(ctx context.Context, q *models.CallbackQuery) {
@@ -47,7 +42,7 @@ func (b *Bot) onCallback(ctx context.Context, q *models.CallbackQuery) {
 
 // cbTask کال‌بک‌های عملیات روی یک تسک (task:*) را پردازش می‌کند.
 func (b *Bot) cbTask(ctx context.Context, q *models.CallbackQuery) {
-	parts := splitCallback(q.Data)
+	parts := ui.SplitCallback(q.Data)
 	if len(parts) < 3 {
 		b.answer(ctx, q, "")
 		return
@@ -115,7 +110,7 @@ func (b *Bot) cbTaskAction(ctx context.Context, q *models.CallbackQuery, u *doma
 		b.answerAlert(ctx, q, "شناسه‌ی تسک نامعتبر است")
 		return
 	}
-	origin, err := parseTaskOrigin(splitCallback(q.Data), 3)
+	origin, err := ui.ParseTaskOrigin(ui.SplitCallback(q.Data), 3)
 	if err != nil {
 		b.answer(ctx, q, "")
 		return
@@ -161,9 +156,9 @@ func (b *Bot) cbTaskAction(ctx context.Context, q *models.CallbackQuery, u *doma
 }
 
 // refreshTaskView بسته به مبدأ، فهرست یا کارت را دوباره رندر می‌کند تا UI سینک بماند.
-func (b *Bot) refreshTaskView(ctx context.Context, userID uuid.UUID, chatID int64, messageID int, id uuid.UUID, origin taskOrigin) {
+func (b *Bot) refreshTaskView(ctx context.Context, userID uuid.UUID, chatID int64, messageID int, id uuid.UUID, origin ui.TaskOrigin) {
 	if origin.List {
-		if err := b.renderTaskList(ctx, chatID, messageID, userID, listFilter(origin.Filter), origin.Page); err != nil {
+		if err := b.renderTaskList(ctx, chatID, messageID, userID, ui.ListFilter(origin.Filter), origin.Page); err != nil {
 			b.log.Error("render task list failed", zap.Error(err))
 		}
 		return
@@ -180,7 +175,7 @@ func (b *Bot) cbTaskEdit(ctx context.Context, q *models.CallbackQuery, u *domain
 		b.answerAlert(ctx, q, "شناسه‌ی تسک نامعتبر است")
 		return
 	}
-	origin, err := parseTaskOrigin(splitCallback(q.Data), 4)
+	origin, err := ui.ParseTaskOrigin(ui.SplitCallback(q.Data), 4)
 	if err != nil {
 		b.answer(ctx, q, "")
 		return
@@ -194,7 +189,7 @@ func (b *Bot) cbTaskEdit(ctx context.Context, q *models.CallbackQuery, u *domain
 			return
 		}
 		b.answer(ctx, q, "عنوان جدید را ارسال کنید ✏️")
-		if err := b.edit(ctx, chatID, messageID, "📝 لطفاً عنوان جدید تسک را در پیام بعدی بفرست.", CancelInlineKeyboard()); err != nil {
+		if err := b.edit(ctx, chatID, messageID, "📝 لطفاً عنوان جدید تسک را در پیام بعدی بفرست.", ui.CancelInlineKeyboard()); err != nil {
 			b.log.Error("render edit title prompt failed", zap.Error(err))
 		}
 
@@ -205,7 +200,7 @@ func (b *Bot) cbTaskEdit(ctx context.Context, q *models.CallbackQuery, u *domain
 			return
 		}
 		b.answer(ctx, q, "توضیحات جدید را ارسال کنید ✏️")
-		if err := b.edit(ctx, chatID, messageID, "📄 لطفاً توضیحات جدید تسک را در پیام بعدی بفرست.", CancelInlineKeyboard()); err != nil {
+		if err := b.edit(ctx, chatID, messageID, "📄 لطفاً توضیحات جدید تسک را در پیام بعدی بفرست.", ui.CancelInlineKeyboard()); err != nil {
 			b.log.Error("render edit desc prompt failed", zap.Error(err))
 		}
 
@@ -216,8 +211,8 @@ func (b *Bot) cbTaskEdit(ctx context.Context, q *models.CallbackQuery, u *domain
 			return
 		}
 		b.answer(ctx, q, "")
-		text := fmt.Sprintf("📅 موعد تسک «%s» را انتخاب کن:", truncate(task.Title, 40))
-		if err := b.edit(ctx, chatID, messageID, text, DuePickerKeyboard(task, origin)); err != nil {
+		text := fmt.Sprintf("📅 موعد تسک «%s» را انتخاب کن:", ui.Truncate(task.Title, 40))
+		if err := b.edit(ctx, chatID, messageID, text, ui.DuePickerKeyboard(task, origin)); err != nil {
 			b.log.Error("render due picker failed", zap.Error(err))
 		}
 
@@ -228,8 +223,8 @@ func (b *Bot) cbTaskEdit(ctx context.Context, q *models.CallbackQuery, u *domain
 			return
 		}
 		b.answer(ctx, q, "")
-		text := fmt.Sprintf("⚡ اولویت تسک «%s» را انتخاب کن:", truncate(task.Title, 40))
-		if err := b.edit(ctx, chatID, messageID, text, PriorityPickerKeyboard(task, origin)); err != nil {
+		text := fmt.Sprintf("⚡ اولویت تسک «%s» را انتخاب کن:", ui.Truncate(task.Title, 40))
+		if err := b.edit(ctx, chatID, messageID, text, ui.PriorityPickerKeyboard(task, origin)); err != nil {
 			b.log.Error("render priority picker failed", zap.Error(err))
 		}
 
@@ -245,7 +240,7 @@ func (b *Bot) cbTaskDeleteAsk(ctx context.Context, q *models.CallbackQuery, rawI
 		b.answerAlert(ctx, q, "شناسه‌ی تسک نامعتبر است")
 		return
 	}
-	origin, err := parseTaskOrigin(splitCallback(q.Data), 3)
+	origin, err := ui.ParseTaskOrigin(ui.SplitCallback(q.Data), 3)
 	if err != nil {
 		b.answer(ctx, q, "")
 		return
@@ -257,8 +252,8 @@ func (b *Bot) cbTaskDeleteAsk(ctx context.Context, q *models.CallbackQuery, rawI
 		return
 	}
 	b.answer(ctx, q, "")
-	text := fmt.Sprintf("🗑 مطمئنی می‌خوای تسک «%s» را حذف کنی؟\nاین عمل قابل بازگشت نیست.", truncate(task.Title, 60))
-	if err := b.edit(ctx, chatID, messageID, text, DeleteConfirmKeyboard(task, origin)); err != nil {
+	text := fmt.Sprintf("🗑 مطمئنی می‌خوای تسک «%s» را حذف کنی؟\nاین عمل قابل بازگشت نیست.", ui.Truncate(task.Title, 60))
+	if err := b.edit(ctx, chatID, messageID, text, ui.DeleteConfirmKeyboard(task, origin)); err != nil {
 		b.log.Error("render delete confirm failed", zap.Error(err))
 	}
 }
@@ -270,7 +265,7 @@ func (b *Bot) cbTaskDeleteYes(ctx context.Context, q *models.CallbackQuery, u *d
 		b.answerAlert(ctx, q, "شناسه‌ی تسک نامعتبر است")
 		return
 	}
-	origin, err := parseTaskOrigin(splitCallback(q.Data), 4)
+	origin, err := ui.ParseTaskOrigin(ui.SplitCallback(q.Data), 4)
 	if err != nil {
 		b.answer(ctx, q, "")
 		return
@@ -284,12 +279,12 @@ func (b *Bot) cbTaskDeleteYes(ctx context.Context, q *models.CallbackQuery, u *d
 	b.answer(ctx, q, "حذف شد 🗑")
 
 	if origin.List {
-		if err := b.renderTaskList(ctx, chatID, messageID, u.ID, listFilter(origin.Filter), origin.Page); err != nil {
+		if err := b.renderTaskList(ctx, chatID, messageID, u.ID, ui.ListFilter(origin.Filter), origin.Page); err != nil {
 			b.log.Error("render task list failed", zap.Error(err))
 		}
 		return
 	}
-	if err := b.edit(ctx, chatID, messageID, "🗑 تسک حذف شد.", BackKeyboard()); err != nil {
+	if err := b.edit(ctx, chatID, messageID, "🗑 تسک حذف شد.", ui.BackKeyboard()); err != nil {
 		b.log.Error("render deleted notice failed", zap.Error(err))
 	}
 }
@@ -301,7 +296,7 @@ func (b *Bot) cbTaskDue(ctx context.Context, q *models.CallbackQuery, rawID, pre
 		b.answerAlert(ctx, q, "شناسه‌ی تسک نامعتبر است")
 		return
 	}
-	origin, err := parseTaskOrigin(splitCallback(q.Data), 4)
+	origin, err := ui.ParseTaskOrigin(ui.SplitCallback(q.Data), 4)
 	if err != nil {
 		b.answer(ctx, q, "")
 		return
@@ -350,7 +345,7 @@ func (b *Bot) cbTaskPriority(ctx context.Context, q *models.CallbackQuery, rawID
 		b.answerAlert(ctx, q, "شناسه‌ی تسک نامعتبر است")
 		return
 	}
-	origin, err := parseTaskOrigin(splitCallback(q.Data), 4)
+	origin, err := ui.ParseTaskOrigin(ui.SplitCallback(q.Data), 4)
 	if err != nil {
 		b.answer(ctx, q, "")
 		return
@@ -361,17 +356,9 @@ func (b *Bot) cbTaskPriority(ctx context.Context, q *models.CallbackQuery, rawID
 		b.answerAlert(ctx, q, "خطا در ثبت اولویت")
 		return
 	}
-	b.answer(ctx, q, "اولویت ثبت شد ⚡ "+priorityLabel(level))
+	b.answer(ctx, q, "اولویت ثبت شد ⚡ "+ui.PriorityLabel(level))
 
 	if err := b.renderTaskCard(ctx, chatID, messageID, id, origin); err != nil {
 		b.log.Error("render task card failed", zap.Error(err))
 	}
-}
-
-// atoiOr صفحات را از دیتای کال‌بک می‌خواند.
-func atoiOr(s string, fallback int) int {
-	if n, err := strconv.Atoi(s); err == nil && n > 0 {
-		return n
-	}
-	return fallback
 }

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AliGhanizade/planix-telegram-bot/internal/bot/ui"
 	"github.com/AliGhanizade/planix-telegram-bot/internal/domain"
 	"github.com/AliGhanizade/planix-telegram-bot/internal/repository"
 	"github.com/AliGhanizade/planix-telegram-bot/internal/service"
@@ -108,7 +109,7 @@ func (b *Bot) send(ctx context.Context, chatID int64, text string, markup models
 
 // sendWithKeyboard پیام با کیبورد اصلی (رنگی) می‌فرستد.
 func (b *Bot) sendWithKeyboard(ctx context.Context, chatID int64, text string) (*models.Message, error) {
-	return b.send(ctx, chatID, text, MainKeyboard())
+	return b.send(ctx, chatID, text, ui.MainKeyboard())
 }
 
 // edit متن و markup یک پیام موجود را همان‌جا بروزرسانی می‌کند تا رابط کاربری سینک بماند.
@@ -192,9 +193,9 @@ func (b *Bot) onText(ctx context.Context, m *models.Message) {
 	text := strings.TrimSpace(m.Text)
 	switch text {
 	case "/start":
-		b.sendWithKeyboard(ctx, m.Chat.ID, welcomeMessage(b.me))
+		b.sendWithKeyboard(ctx, m.Chat.ID, ui.WelcomeMessage(b.me))
 	case "/today", "📋 برنامه امروز", "📅 برنامه‌های من":
-		if err := b.renderTaskList(ctx, m.Chat.ID, 0, u.ID, filterPending, 1); err != nil {
+		if err := b.renderTaskList(ctx, m.Chat.ID, 0, u.ID, ui.FilterPending, 1); err != nil {
 			b.log.Error("render task list failed", zap.Error(err))
 		}
 	case "/new", "➕ تسک جدید":
@@ -202,7 +203,7 @@ func (b *Bot) onText(ctx context.Context, m *models.Message) {
 	case "/search", "🔍 جستجو":
 		b.startSearch(ctx, u, m.Chat.ID, 0)
 	case "/help", "ℹ️ راهنما":
-		b.sendWithKeyboard(ctx, m.Chat.ID, helpMessage)
+		b.sendWithKeyboard(ctx, m.Chat.ID, ui.HelpMessage)
 	case "/profile", "👤 پروفایل":
 		b.sendProfile(ctx, u, m.Chat.ID, 0)
 	case "👥 واگذاری تسک", "👥 اعمال وظایف دیگران":
@@ -215,7 +216,7 @@ func (b *Bot) onText(ctx context.Context, m *models.Message) {
 		b.sendWithKeyboard(ctx, m.Chat.ID, fmt.Sprintf("🛟 برای ارتباط با پشتیبانی به @%s پیام بده.", b.owner))
 	case "❌ بازگشت", " ❌ بازگشت":
 		_ = b.clearSession(ctx, u.ID)
-		b.sendWithKeyboard(ctx, m.Chat.ID, menuText)
+		b.sendWithKeyboard(ctx, m.Chat.ID, ui.MenuText)
 	default:
 		if err := b.checkState(ctx, u, text, m.Chat.ID); err != nil {
 			b.log.Error("handle state failed", zap.Error(err))

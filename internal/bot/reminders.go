@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/AliGhanizade/planix-telegram-bot/internal/bot/ui"
 	"go.uber.org/zap"
 )
 
@@ -31,7 +32,7 @@ func (b *Bot) SendDailyReports(ctx context.Context) {
 		} else {
 			text += fmt.Sprintf("شما %d تسک باز دارید:\n\n", len(tasks))
 			for _, t := range tasks {
-				text += FormatSmallInfo(&t) + "\n"
+				text += ui.FormatSmallInfo(&t) + "\n"
 			}
 		}
 
@@ -64,7 +65,7 @@ func (b *Bot) SendDueReminders(ctx context.Context, lead time.Duration) {
 
 		remaining := time.Until(*t.DueAt)
 		text := fmt.Sprintf("⏳ یادآوری پلنیکس\n\nتسک «%s» تا %s دیگر موعدش تمام می‌شود.\n📅 موعد: %s",
-			truncate(t.Title, 60),
+			ui.Truncate(t.Title, 60),
 			humanDuration(remaining),
 			t.DueAt.Format("01-02 15:04"),
 		)

@@ -1,8 +1,7 @@
-package bot
+package ui
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/AliGhanizade/planix-telegram-bot/internal/domain"
 	"github.com/go-telegram/bot/models"
@@ -69,103 +68,34 @@ func CancelInlineKeyboard() models.InlineKeyboardMarkup {
 	}
 }
 
-// truncate عنوان را برای جا شدن در دکمه کوتاه می‌کند.
-func truncate(s string, n int) string {
-	r := []rune(s)
-	if len(r) <= n {
-		return s
-	}
-	return string(r[:n-1]) + "…"
-}
-
-// taskOrigin مبدأ نمایش یک تسک را مشخص می‌کند: فهرست (با فیلتر و صفحه) یا کارت مستقل.
-type taskOrigin struct {
-	List   bool
-	Filter string
-	Page   int
-}
-
-// noOrigin مبدأ مستقل (کارت باز‌شده از جستجو و…).
-var noOrigin = taskOrigin{}
-
-// suffix پسوند مبدأ را برای دیتای کال‌بک می‌سازد.
-func (o taskOrigin) suffix() string {
-	if !o.List {
-		return ":C"
-	}
-	return fmt.Sprintf(":L:%s:%d", o.Filter, o.Page)
-}
-
-// parseTaskOrigin پسوند مبدأ را از اجزای دیتای کال‌بک می‌خواند.
-func parseTaskOrigin(parts []string, idx int) (taskOrigin, error) {
-	if idx >= len(parts) {
-		return noOrigin, nil
-	}
-	switch parts[idx] {
-	case "C":
-		return noOrigin, nil
-	case "L":
-		o := taskOrigin{List: true, Filter: "pending", Page: 1}
-		if idx+1 < len(parts) {
-			o.Filter = parts[idx+1]
-		}
-		if idx+2 < len(parts) {
-			if p, err := strconv.Atoi(parts[idx+2]); err == nil {
-				o.Page = p
-			}
-		}
-		return o, nil
-	default:
-		return noOrigin, fmt.Errorf("unknown origin: %s", parts[idx])
-	}
-}
-
-// taskData دیتای کال‌بک یک عملیات تسک را با مبدأ می‌سازد.
-func taskData(action string, id interface{ String() string }, o taskOrigin) string {
-	return "task:" + action + ":" + id.String() + o.suffix()
-}
-
-// listData دیتای کال‌بک فهرست تسک‌ها را می‌سازد.
-func listData(f listFilter, page int) string {
-	return fmt.Sprintf("list:tasks:%s:%d", f, page)
-}
-
-// backDataOf دکمه‌ی بازگشتِ مناسب برای یک مبدأ را برمی‌گرداند.
-func backDataOf(o taskOrigin) string {
-	if o.List {
-		return listData(listFilter(o.Filter), o.Page)
-	}
-	return "nav:menu"
-}
-
 // TaskListKeyboard فهرست تسک‌ها با دکمه‌ی انجام/جزئیات، تب‌های فیلتر و صفحه‌بندی.
-func TaskListKeyboard(tasks []domain.Task, f listFilter, page, pages int) models.InlineKeyboardMarkup {
+func TaskListKeyboard(tasks []domain.Task, f ListFilter, page, pages int) models.InlineKeyboardMarkup {
 	var rows [][]models.InlineKeyboardButton
 
 	for _, t := range tasks {
-		o := taskOrigin{List: true, Filter: string(f), Page: page}
+		o := TaskOrigin{List: true, Filter: string(f), Page: page}
 		rows = append(rows, []models.InlineKeyboardButton{
-			{Text: " ℹ️ " + truncate(t.Title, 36), CallbackData: taskData("info", t.ID, o)},
-			{Text: "✅", CallbackData: taskData("done", t.ID, o), Style: StyleSuccess},
+			{Text: " ℹ️ " + Truncate(t.Title, 36), CallbackData: TaskData("info", t.ID, o)},
+			{Text: "✅", CallbackData: TaskData("done", t.ID, o), Style: StyleSuccess},
 		})
 	}
 
 	// تب‌های فیلتر — تب فعال آبی می‌شود
 	rows = append(rows, []models.InlineKeyboardButton{
-		filterButton("⏳ باز", filterPending, f),
-		filterButton("✅ انجام‌شده", filterCompleted, f),
-		filterButton("🗂 همه", filterAll, f),
+		filterButton("⏳ باز", FilterPending, f),
+		filterButton("✅ انجام‌شده", FilterCompleted, f),
+		filterButton("🗂 همه", FilterAll, f),
 	})
 
 	// صفحه‌بندی
 	if pages > 1 {
 		var nav []models.InlineKeyboardButton
 		if page > 1 {
-			nav = append(nav, ib("⬅️ قبلی", listData(f, page-1), ""))
+			nav = append(nav, ib("⬅️ قبلی", ListData(f, page-1), ""))
 		}
 		nav = append(nav, ib(fmt.Sprintf("📄 %d از %d", page, pages), "nav:noop", ""))
 		if page < pages {
-			nav = append(nav, ib("بعدی ➡️", listData(f, page+1), ""))
+			nav = append(nav, ib("بعدی ➡️", ListData(f, page+1), ""))
 		}
 		rows = append(rows, nav)
 	}
@@ -177,8 +107,8 @@ func TaskListKeyboard(tasks []domain.Task, f listFilter, page, pages int) models
 	return models.InlineKeyboardMarkup{InlineKeyboard: rows}
 }
 
-func filterButton(label string, f, active listFilter) models.InlineKeyboardButton {
-	data := listData(f, 1)
+func filterButton(label string, f, active ListFilter) models.InlineKeyboardButton {
+	data := ListData(f, 1)
 	if f == active {
 		return ib("● "+label, data, StylePrimary)
 	}
@@ -186,43 +116,43 @@ func filterButton(label string, f, active listFilter) models.InlineKeyboardButto
 }
 
 // TaskCardKeyboard کارت تسک را با دکمه‌های مدیریتی رنگی می‌سازد.
-func TaskCardKeyboard(task *domain.Task, o taskOrigin) models.InlineKeyboardMarkup {
+func TaskCardKeyboard(task *domain.Task, o TaskOrigin) models.InlineKeyboardMarkup {
 	var rows [][]models.InlineKeyboardButton
 
 	if task.Status == "completed" {
 		rows = append(rows, []models.InlineKeyboardButton{
-			{Text: "🔄 بازگشایی تسک", CallbackData: taskData("reopen", task.ID, o), Style: StylePrimary},
+			{Text: "🔄 بازگشایی تسک", CallbackData: TaskData("reopen", task.ID, o), Style: StylePrimary},
 		})
 	} else {
 		rows = append(rows, []models.InlineKeyboardButton{
-			{Text: "✅ انجام شد", CallbackData: taskData("done", task.ID, o), Style: StyleSuccess},
+			{Text: "✅ انجام شد", CallbackData: TaskData("done", task.ID, o), Style: StyleSuccess},
 		})
 	}
 
 	rows = append(rows, []models.InlineKeyboardButton{
-		ib("📝 عنوان", taskData("edit:title", task.ID, o), ""),
-		ib("📄 توضیحات", taskData("edit:desc", task.ID, o), ""),
+		ib("📝 عنوان", TaskData("edit:title", task.ID, o), ""),
+		ib("📄 توضیحات", TaskData("edit:desc", task.ID, o), ""),
 	})
 	rows = append(rows, []models.InlineKeyboardButton{
-		ib("📅 موعد", taskData("edit:due", task.ID, o), ""),
-		ib("⚡ اولویت", taskData("edit:priority", task.ID, o), ""),
+		ib("📅 موعد", TaskData("edit:due", task.ID, o), ""),
+		ib("⚡ اولویت", TaskData("edit:priority", task.ID, o), ""),
 	})
 	rows = append(rows, []models.InlineKeyboardButton{
-		{Text: "🗑 حذف", CallbackData: taskData("delete", task.ID, o), Style: StyleDanger},
-		ib("🔄 بروزرسانی", taskData("refresh", task.ID, o), ""),
+		{Text: "🗑 حذف", CallbackData: TaskData("delete", task.ID, o), Style: StyleDanger},
+		ib("🔄 بروزرسانی", TaskData("refresh", task.ID, o), ""),
 	})
 	rows = append(rows, []models.InlineKeyboardButton{
-		{Text: "↩️ بازگشت", CallbackData: backDataOf(o), Style: StylePrimary},
+		{Text: "↩️ بازگشت", CallbackData: BackDataOf(o), Style: StylePrimary},
 	})
 
 	return models.InlineKeyboardMarkup{InlineKeyboard: rows}
 }
 
 // DuePickerKeyboard انتخاب سریع موعد تسک.
-func DuePickerKeyboard(task *domain.Task, o taskOrigin) models.InlineKeyboardMarkup {
+func DuePickerKeyboard(task *domain.Task, o TaskOrigin) models.InlineKeyboardMarkup {
 	id := task.ID
 	due := func(preset string) string {
-		return "task:due:" + id.String() + ":" + preset + o.suffix()
+		return "task:due:" + id.String() + ":" + preset + o.Suffix()
 	}
 	return models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{
@@ -230,16 +160,16 @@ func DuePickerKeyboard(task *domain.Task, o taskOrigin) models.InlineKeyboardMar
 			{{Text: "☀️ فردا صبح", CallbackData: due("tomorrow")}},
 			{{Text: "🗓 هفته‌ی بعد", CallbackData: due("week")}},
 			{{Text: "🗑 بدون موعد", CallbackData: due("none"), Style: StyleDanger}},
-			{{Text: "↩️ انصراف", CallbackData: taskData("refresh", id, o)}},
+			{{Text: "↩️ انصراف", CallbackData: TaskData("refresh", id, o)}},
 		},
 	}
 }
 
 // PriorityPickerKeyboard انتخاب اولویت تسک.
-func PriorityPickerKeyboard(task *domain.Task, o taskOrigin) models.InlineKeyboardMarkup {
+func PriorityPickerKeyboard(task *domain.Task, o TaskOrigin) models.InlineKeyboardMarkup {
 	id := task.ID
 	prio := func(level string) string {
-		return "task:prio:" + id.String() + ":" + level + o.suffix()
+		return "task:prio:" + id.String() + ":" + level + o.Suffix()
 	}
 	return models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{
@@ -247,19 +177,19 @@ func PriorityPickerKeyboard(task *domain.Task, o taskOrigin) models.InlineKeyboa
 			{{Text: "🟡 معمولی", CallbackData: prio("normal"), Style: StylePrimary}},
 			{{Text: "🟠 زیاد", CallbackData: prio("high"), Style: StyleSuccess}},
 			{{Text: "🔴 فوری", CallbackData: prio("urgent"), Style: StyleDanger}},
-			{{Text: "↩️ انصراف", CallbackData: taskData("refresh", id, o)}},
+			{{Text: "↩️ انصراف", CallbackData: TaskData("refresh", id, o)}},
 		},
 	}
 }
 
 // DeleteConfirmKeyboard تایید دو مرحله‌ای حذف تسک.
-func DeleteConfirmKeyboard(task *domain.Task, o taskOrigin) models.InlineKeyboardMarkup {
+func DeleteConfirmKeyboard(task *domain.Task, o TaskOrigin) models.InlineKeyboardMarkup {
 	id := task.ID
 	return models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{
 			{
-				{Text: "🗑 بله، حذف کن", CallbackData: taskData("delete:yes", id, o), Style: StyleDanger},
-				{Text: "انصراف", CallbackData: taskData("refresh", id, o)},
+				{Text: "🗑 بله، حذف کن", CallbackData: TaskData("delete:yes", id, o), Style: StyleDanger},
+				{Text: "انصراف", CallbackData: TaskData("refresh", id, o)},
 			},
 		},
 	}
@@ -292,7 +222,7 @@ func SearchResultsKeyboard(tasks []domain.Task) models.InlineKeyboardMarkup {
 	var rows [][]models.InlineKeyboardButton
 	for _, t := range tasks {
 		rows = append(rows, []models.InlineKeyboardButton{
-			{Text: " ℹ️ " + truncate(t.Title, 40), CallbackData: taskData("info", t.ID, noOrigin)},
+			{Text: " ℹ️ " + Truncate(t.Title, 40), CallbackData: TaskData("info", t.ID, NoOrigin)},
 		})
 	}
 	rows = append(rows, []models.InlineKeyboardButton{

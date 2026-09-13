@@ -3,8 +3,6 @@ package bot
 import (
 	"testing"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 func TestDueFromPreset(t *testing.T) {
@@ -42,7 +40,7 @@ func TestDueFromPreset(t *testing.T) {
 }
 
 func TestDueFromPresetTimezone(t *testing.T) {
-	now := time.Date(2026, 9, 13, 20, 0, 0, 0, time.UTC) // ساعت ۲۳:۳۰ به وقت تهران
+	now := time.Date(2026, 9, 13, 20, 0, 0, 0, time.UTC) // ۲۳:۳۰ به وقت تهران
 	loc, err := time.LoadLocation("Asia/Tehran")
 	if err != nil {
 		t.Skip("timezone data unavailable")
@@ -51,7 +49,6 @@ func TestDueFromPresetTimezone(t *testing.T) {
 	if !ok {
 		t.Fatal("today preset should be valid")
 	}
-	// پایان روز به وقت تهران = 20:29 UTC همان روز.
 	if today.In(loc).Format("2006-01-02 15:04") != "2026-09-13 23:59" {
 		t.Errorf("tehran end of day = %s", today.In(loc))
 	}
@@ -63,42 +60,5 @@ func TestUserLocationFallback(t *testing.T) {
 	}
 	if got := userLocation("Not/AZone"); got != time.UTC {
 		t.Errorf("userLocation fallback should be UTC, got %s", got)
-	}
-}
-
-func TestTaskOriginSuffixAndParse(t *testing.T) {
-	o := taskOrigin{List: true, Filter: "pending", Page: 2}
-	suffix := o.suffix()
-	if suffix != ":L:pending:2" {
-		t.Errorf("suffix = %q", suffix)
-	}
-	parts := []string{"task", "done", uuid.New().String(), "L", "pending", "2"}
-	got, err := parseTaskOrigin(parts, 3)
-	if err != nil {
-		t.Fatalf("parseTaskOrigin failed: %v", err)
-	}
-	if !got.List || got.Filter != "pending" || got.Page != 2 {
-		t.Errorf("parsed origin = %+v", got)
-	}
-
-	card := taskOrigin{}.suffix()
-	if card != ":C" {
-		t.Errorf("card suffix = %q, want :C", card)
-	}
-	got, err = parseTaskOrigin([]string{"task", "info", uuid.New().String(), "C"}, 3)
-	if err != nil || got.List {
-		t.Errorf("card origin parse = %+v, err %v", got, err)
-	}
-}
-
-func TestTaskDataRoundTrip(t *testing.T) {
-	id := uuid.New()
-	o := taskOrigin{List: true, Filter: "completed", Page: 3}
-	data := taskData("done", id, o)
-	if data != "task:done:"+id.String()+":L:completed:3" {
-		t.Errorf("taskData = %q", data)
-	}
-	if len(data) > 64 {
-		t.Errorf("callback data longer than 64 bytes: %d", len(data))
 	}
 }

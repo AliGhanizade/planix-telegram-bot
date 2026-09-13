@@ -4,59 +4,16 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/AliGhanizade/planix-telegram-bot/internal/bot/ui"
 	"github.com/AliGhanizade/planix-telegram-bot/internal/domain"
 	"github.com/go-telegram/bot/models"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
-// متن‌های ثابت بات.
-const (
-	menuText = "🗂 منوی پلنیکس\n\nیک گزینه را انتخاب کن:"
-
-	assignPrompt = "📋 فرمت ارسال\n\n" +
-		"خط اول: یوزرنیم\n" +
-		"بقیه: هر تسک در یک خط\n\n" +
-		"@username\n" +
-		"طراحی API\n" +
-		"بررسی Pull Request"
-
-	searchPrompt  = "🔍 متن یا کلمه‌ای از عنوان تسک را بفرست:"
-	newTaskPrompt = "➕ عنوان تسک را بفرست. مثال: مطالعه گولنگ"
-
-	statusPickPrompt = "📊 برای چه کسی می‌خوای وضعیت تسک‌هاشو ببینی؟"
-)
-
-// welcomeMessage پیام خوش‌آمد /start را می‌سازد.
-func welcomeMessage(me *models.User) string {
-	name := "پلنیکس"
-	if me != nil && me.FirstName != "" {
-		name = me.FirstName
-	}
-	return fmt.Sprintf("سلام! من %s هستم ✨\n\n"+
-		"کارهایت را ثبت کن، برنامه‌ی امروزت را ببین و تسک‌ها را به دیگران واگذار کن.\n"+
-		"از دکمه‌های رنگی پایین استفاده کن یا همین‌جا بنویس:\n\n"+
-		"➕ تسک جدید — ثبت سریع تسک\n"+
-		"📋 برنامه امروز — کارهای باز امروز\n"+
-		"🔍 جستجو — بین تسک‌هایت بگرد\n"+
-		"👥 واگذاری تسک — سپردن کار به دیگران\n"+
-		"📊 وضعیت وظایف — پیگیری کارهای واگذارشده", name)
-}
-
-// helpMessage متن راهنمای کامل بات.
-const helpMessage = "ℹ️ راهنمای پلنیکس\n\n" +
-	"➕ تسک جدید — ثبت سریع تسک برای خودت\n" +
-	"📋 برنامه امروز — فهرست کارهای باز با فیلتر و صفحه‌بندی\n" +
-	"🔍 جستجو — جستجوی عنوان بین همه‌ی تسک‌هایت\n" +
-	"👥 واگذاری تسک — ثبت چند تسک برای یک نفر در یک پیام\n" +
-	"📊 وضعیت وظایف دیگران — ببین هر نفر کدام تسک‌های تو را انجام داده\n" +
-	"👤 پروفایل — آمار تسک‌های تو\n" +
-	"⚙️ تنظیمات — خاموش/روشن کردن گزارش روزانه\n\n" +
-	"از کارت هر تسک می‌توانی تیک بزنی، عنوان و توضیحات و موعد و اولویت را عوض کنی یا حذفش کنی."
-
 // showMenu منوی اصلی را در پیام موجود نشان می‌دهد یا پیام تازه می‌فرستد.
 func (b *Bot) showMenu(ctx context.Context, chatID int64, messageID int) error {
-	return b.render(ctx, chatID, messageID, menuText, MenuInlineKeyboard())
+	return b.render(ctx, chatID, messageID, ui.MenuText, ui.MenuInlineKeyboard())
 }
 
 // cbNav کال‌بک‌های دکمه‌های nav:* (ناوبری منو) را پردازش می‌کند.
@@ -87,7 +44,7 @@ func (b *Bot) cbNav(ctx context.Context, q *models.CallbackQuery) {
 
 	case "nav:today":
 		b.answer(ctx, q, "")
-		if err := b.renderTaskList(ctx, chatID, messageID, u.ID, filterPending, 1); err != nil {
+		if err := b.renderTaskList(ctx, chatID, messageID, u.ID, ui.FilterPending, 1); err != nil {
 			b.log.Error("render task list failed", zap.Error(err))
 		}
 
@@ -113,7 +70,7 @@ func (b *Bot) cbNav(ctx context.Context, q *models.CallbackQuery) {
 
 	case "nav:help":
 		b.answer(ctx, q, "")
-		if err := b.render(ctx, chatID, messageID, helpMessage, MenuInlineKeyboard()); err != nil {
+		if err := b.render(ctx, chatID, messageID, ui.HelpMessage, ui.MenuInlineKeyboard()); err != nil {
 			b.log.Error("render help failed", zap.Error(err))
 		}
 
@@ -211,17 +168,10 @@ func (b *Bot) cbSettings(ctx context.Context, q *models.CallbackQuery) {
 // showSettings صفحه‌ی تنظیمات را رندر می‌کند.
 func (b *Bot) showSettings(ctx context.Context, u *domain.User, chatID int64, messageID int) {
 	text := "⚙️ تنظیمات\n\nوضعیت فعلی:" +
-		fmt.Sprintf("\nگزارش روزانه: %s", dailyReportLabel(u.DailyReport))
-	if err := b.render(ctx, chatID, messageID, text, SettingsInlineKeyboard(u.DailyReport)); err != nil {
+		fmt.Sprintf("\nگزارش روزانه: %s", ui.DailyReportLabel(u.DailyReport))
+	if err := b.render(ctx, chatID, messageID, text, ui.SettingsInlineKeyboard(u.DailyReport)); err != nil {
 		b.log.Error("render settings failed", zap.Error(err))
 	}
-}
-
-func dailyReportLabel(on bool) string {
-	if on {
-		return "روشن ✅"
-	}
-	return "خاموش ❌"
 }
 
 // startNewTask شروع جریان ثبت تسک جدید.
@@ -229,7 +179,7 @@ func (b *Bot) startNewTask(ctx context.Context, u *domain.User, chatID int64, me
 	if err := b.setSession(ctx, u.ID, stateWaitingTaskTitle, sessionData{}); err != nil {
 		b.log.Error("set session failed", zap.Error(err))
 	}
-	if err := b.render(ctx, chatID, messageID, newTaskPrompt, CancelInlineKeyboard()); err != nil {
+	if err := b.render(ctx, chatID, messageID, ui.NewTaskPrompt, ui.CancelInlineKeyboard()); err != nil {
 		b.log.Error("render new task prompt failed", zap.Error(err))
 	}
 }
@@ -239,7 +189,7 @@ func (b *Bot) startSearch(ctx context.Context, u *domain.User, chatID int64, mes
 	if err := b.setSession(ctx, u.ID, stateWaitingSearch, sessionData{}); err != nil {
 		b.log.Error("set session failed", zap.Error(err))
 	}
-	if err := b.render(ctx, chatID, messageID, searchPrompt, CancelInlineKeyboard()); err != nil {
+	if err := b.render(ctx, chatID, messageID, ui.SearchPrompt, ui.CancelInlineKeyboard()); err != nil {
 		b.log.Error("render search prompt failed", zap.Error(err))
 	}
 }
@@ -249,7 +199,7 @@ func (b *Bot) startAssign(ctx context.Context, u *domain.User, chatID int64, mes
 	if err := b.setSession(ctx, u.ID, stateWaitingTaskForOther, sessionData{}); err != nil {
 		b.log.Error("set session failed", zap.Error(err))
 	}
-	if err := b.render(ctx, chatID, messageID, assignPrompt, CancelInlineKeyboard()); err != nil {
+	if err := b.render(ctx, chatID, messageID, ui.AssignPrompt, ui.CancelInlineKeyboard()); err != nil {
 		b.log.Error("render assign prompt failed", zap.Error(err))
 	}
 }
@@ -263,7 +213,7 @@ func (b *Bot) sendStatusPick(ctx context.Context, u *domain.User, chatID int64, 
 	if err != nil {
 		b.log.Error("list assigned users failed", zap.Error(err))
 	}
-	if err := b.render(ctx, chatID, messageID, statusPickPrompt, SuggestFriendInlineKeyboard(users)); err != nil {
+	if err := b.render(ctx, chatID, messageID, ui.StatusPickPrompt, ui.SuggestFriendInlineKeyboard(users)); err != nil {
 		b.log.Error("render status pick failed", zap.Error(err))
 	}
 }
@@ -292,7 +242,7 @@ func (b *Bot) sendProfile(ctx context.Context, u *domain.User, chatID int64, mes
 		fmt.Sprintf("❌ لغو‌شده: %d\n", st.Cancelled) +
 		fmt.Sprintf("📈 پیشرفت: %.0f%%", st.CompletionRate())
 
-	if err := b.render(ctx, chatID, messageID, text, MenuInlineKeyboard()); err != nil {
+	if err := b.render(ctx, chatID, messageID, text, ui.MenuInlineKeyboard()); err != nil {
 		b.log.Error("render profile failed", zap.Error(err))
 	}
 }
@@ -310,16 +260,16 @@ func (b *Bot) renderDelegatedStatus(ctx context.Context, chatID int64, messageID
 
 	if len(tasks) == 0 {
 		text := fmt.Sprintf("📭 تا کنون به %s تسکی واگذار نکرده‌ای.", target.FirstName)
-		return b.render(ctx, chatID, messageID, text, BackKeyboard())
+		return b.render(ctx, chatID, messageID, text, ui.BackKeyboard())
 	}
 
 	done := ""
 	pending := ""
 	for _, t := range tasks {
 		if t.Status == "completed" {
-			done += FormatSmallInfo(&t) + "\n"
+			done += ui.FormatSmallInfo(&t) + "\n"
 		} else {
-			pending += FormatSmallInfo(&t) + "\n"
+			pending += ui.FormatSmallInfo(&t) + "\n"
 		}
 	}
 
@@ -330,5 +280,5 @@ func (b *Bot) renderDelegatedStatus(ctx context.Context, chatID int64, messageID
 	if done != "" {
 		text += "✅ انجام‌شده:\n" + done
 	}
-	return b.render(ctx, chatID, messageID, text, BackKeyboard())
+	return b.render(ctx, chatID, messageID, text, ui.BackKeyboard())
 }
