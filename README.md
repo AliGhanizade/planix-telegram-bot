@@ -39,9 +39,9 @@ internal/domain/       فقط مدل‌های دیتابیس
 internal/repository/   کوئری‌های CRUD
 internal/service/      قواعد کسب‌وکار و لاگ رویدادها
 internal/bot/          پیام‌ها، کیبوردها، ماشین وضعیت و کال‌بک‌های تلگرام
-internal/httpapi/      روتر Gin: سلامت سرویس، وب‌هوک، OpenAPI
+internal/httpapi/      روتر Gin: سلامت سرویس، وب‌هوک و API پنل وب
 internal/platform/     آداپتورهای PostgreSQL و لاگر
-docs/                  قرارداد OpenAPI و مستندات معماری
+docs/                  مستندات معماری
 ```
 
 ## 🚀 اجرای محلی
@@ -138,6 +138,3 @@ https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://YOUR-DOMAIN/telegram/
 
 نشست‌ها ۳۰ روز اعتبار دارند و تا وقتی کاربر فعال باشد به‌صورت لغزان تمدید می‌شوند — نیازی به ورود مکرر نیست. مسیرهای اصلی: `/api/tasks` (CRUD + فیلتر + جستجو)، `/api/profile`، `/api/stats`.
 
-## 📄 قرارداد API
-
-قرارداد OpenAPI در [`docs/openapi.yaml`](docs/openapi.yaml) نگه‌داری می‌شود و در زمان اجرا روی `/openapi.yaml` در دسترس است.

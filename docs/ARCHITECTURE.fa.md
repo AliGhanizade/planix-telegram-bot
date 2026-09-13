@@ -26,7 +26,7 @@ flowchart LR
 | مخزن | `internal/repository` | تمام کوئری‌های GORM |
 | دامنه | `internal/domain` | فقط ساختارهای جدول‌ها |
 | پلتفرم | `internal/platform` | اتصال PostgreSQL و لاگر zap |
-| HTTP | `internal/httpapi` | `/healthz`، `/openapi.yaml` و وب‌هوک تلگرام |
+| HTTP | `internal/httpapi` | `/healthz`، API پنل وب و وب‌هوک تلگرام |
 
 قاعده‌ی وابستگی: `bot → service → repository → domain`. هیچ لایه‌ی بالادستی مستقیماً به GORM دسترسی ندارد.
 

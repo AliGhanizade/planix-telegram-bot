@@ -7,6 +7,5 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /planix ./cm
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /planix /planix
-COPY docs/openapi.yaml /docs/openapi.yaml
 EXPOSE 8080
 ENTRYPOINT ["/planix"]

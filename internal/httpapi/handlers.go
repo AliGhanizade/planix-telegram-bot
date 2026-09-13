@@ -30,18 +30,12 @@ func NewHandlers(cfg config.Config, log *zap.Logger, telegram *bot.Bot, auth *se
 // register registers the public routes.
 func (h *Handlers) register(r *gin.Engine) {
 	r.GET("/healthz", h.health)
-	r.GET("/openapi.yaml", h.openapi)
 	r.POST("/telegram/webhook", h.telegramWebhook)
 }
 
 // health is the service health check.
 func (h *Handlers) health(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
-}
-
-// openapi serves the openapi contract.
-func (h *Handlers) openapi(c *gin.Context) {
-	c.File("./docs/openapi.yaml")
 }
 
 // telegramWebhook receives telegram updates with secret validation.
