@@ -15,7 +15,7 @@ func Open(url string, log *zap.Logger) (*gorm.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := db.AutoMigrate(&domain.User{}, &domain.Planner{}, &domain.Task{}, &domain.TaskEvidence{}, &domain.ActivityLog{}, &domain.BotSession{}); err != nil {
+	if err := db.AutoMigrate(&domain.User{}, &domain.Planner{}, &domain.Task{}, &domain.TaskEvidence{}, &domain.ActivityLog{}, &domain.BotSession{}, &domain.LoginCode{}, &domain.WebSession{}); err != nil {
 		return nil, err
 	}
 	return db, nil

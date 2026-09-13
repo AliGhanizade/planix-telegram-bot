@@ -82,3 +82,23 @@ type BotSession struct {
 	Data      string    `gorm:"type:jsonb" json:"data"`
 	ExpiresAt time.Time `gorm:"not null;index" json:"expires_at"`
 }
+
+// LoginCode کد یک‌بارمصرف ورود به پنل وب است که توسط بات به کاربر تحویل می‌شود.
+type LoginCode struct {
+	BaseModel
+	UserID    uuid.UUID  `gorm:"type:uuid;not null;index" json:"user_id"`
+	Code      string     `gorm:"size:8;not null;index" json:"code"`
+	Source    string     `gorm:"size:16;not null;default:bot" json:"source"` // bot | web
+	ExpiresAt time.Time  `gorm:"not null;index" json:"expires_at"`
+	UsedAt    *time.Time `json:"used_at"`
+}
+
+// WebSession نشست ورود کاربر به پنل وب است؛ با فعالیت کاربر به‌صورت لغزان تمدید می‌شود.
+type WebSession struct {
+	BaseModel
+	UserID     uuid.UUID `gorm:"type:uuid;not null;index" json:"user_id"`
+	Token      string    `gorm:"size:64;not null;uniqueIndex" json:"token"`
+	ExpiresAt  time.Time `gorm:"not null;index" json:"expires_at"`
+	LastSeenAt time.Time `gorm:"not null" json:"last_seen_at"`
+	UserAgent  string    `gorm:"size:255" json:"user_agent"`
+}
