@@ -1,95 +1,314 @@
 openapi: 3.0.3
 info:
   title: Planix API
-  version: 2.0.0
+  version: 2.1.0
   description: |
-    English: HTTP interface for the Planix Telegram bot. Telegram uses the webhook endpoint.
-    فارسی: رابط HTTP بات تلگرام پلنیکس. تلگرام به مسیر وب‌هوک درخواست می‌فرستد.
+    English: HTTP interface of the Planix Telegram bot and the web panel backend.
+    فارسی: رابط HTTP بات تلگرام پلنیکس و بک‌اند پنل وب. ورود پنل وب با کد یک‌بارمصرف انجام می‌شود که توسط بات در تلگرام ارسال می‌شود.
 servers:
   - url: http://localhost:8080
+tags:
+  - name: system
+    description: سلامت سرویس و قرارداد API
+  - name: telegram
+    description: وب‌هوک تلگرام
+  - name: auth
+    description: ورود با کد یک‌بارمصرف و نشست‌ها
+  - name: tasks
+    description: مدیریت تسک‌ها
+  - name: profile
+    description: پروفایل، تنظیمات و آمار
 paths:
   /healthz:
     get:
-      summary: Service health check / بررسی سلامت سرویس
+      tags: [system]
+      summary: بررسی سلامت سرویس
       responses:
         '200':
-          description: Service is running
+          description: سرویس در حال اجراست
           content:
             application/json:
               schema:
                 type: object
                 properties:
                   status: { type: string, example: ok }
+  /openapi.yaml:
+    get:
+      tags: [system]
+      summary: دریافت قرارداد OpenAPI
+      responses:
+        '200': { description: فایل YAML }
   /telegram/webhook:
     post:
-      summary: Telegram webhook / وب‌هوک تلگرام
+      tags: [telegram]
+      summary: وب‌هوک تلگرام
       parameters:
         - in: header
           name: X-Telegram-Bot-Api-Secret-Token
           required: false
           schema: { type: string }
-          description: Must match TELEGRAM_WEBHOOK_SECRET when configured.
+          description: باید با TELEGRAM_WEBHOOK_SECRET برابر باشد.
       requestBody:
         required: true
         content:
           application/json:
             schema: { type: object, description: Telegram Update payload }
       responses:
-        '200': { description: Update accepted }
-        '400': { description: Invalid payload }
-        '401': { description: Invalid webhook secret }
-        '500': { description: Processing failure }
+        '200': { description: آپدیت پذیرفته شد }
+        '400': { description: پیام نامعتبر }
+        '401': { description: secret نامعتبر }
+  /api/auth/login/request:
+    post:
+      tags: [auth]
+      summary: درخواست کد ورود — کد توسط بات در تلگرام ارسال می‌شود
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username]
+              properties:
+                username: { type: string, example: AliGhanizade }
+      responses:
+        '202':
+          description: کد توسط بات ارسال شد
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  expires_in: { type: integer, example: 600 }
+        '404': { description: کاربر پیدا نشد (باید اول با بات استارت کند) }
+        '429': { description: محدودیت نرخ درخواست }
+  /api/auth/login/verify:
+    post:
+      tags: [auth]
+      summary: تایید کد و صدور نشست
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string, example: '123456' }
+      responses:
+        '200':
+          description: نشست ۳۰ روزه صادر شد
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '401': { description: کد نامعتبر یا منقضی }
+  /api/auth/me:
+    get:
+      tags: [auth]
+      summary: اطلاعات کاربر لاگین‌شده
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: پروفایل کاربر
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserResponse' }
+        '401': { description: نشست نامعتبر }
+  /api/auth/logout:
+    post:
+      tags: [auth]
+      summary: خروج — باطل کردن توکن
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: خروج انجام شد }
+  /api/tasks:
+    get:
+      tags: [tasks]
+      summary: فهرست تسک‌های کاربر
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: query, name: status, schema: { type: string, enum: [pending, completed, cancelled, all], default: pending } }
+        - { in: query, name: page, schema: { type: integer, default: 1 } }
+        - { in: query, name: q, schema: { type: string }, description: جستجوی عنوان }
+      responses:
+        '200':
+          description: فهرست صفحه‌بندی‌شده
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskListResponse' }
+    post:
+      tags: [tasks]
+      summary: ثبت تسک جدید
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TaskCreate' }
+      responses:
+        '201':
+          description: تسک ثبت شد
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+  /api/tasks/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [tasks]
+      summary: دریافت یک تسک
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: تسک, content: { application/json: { schema: { $ref: '#/components/schemas/Task' } } } }
+        '403': { description: بدون دسترسی }
+        '404': { description: پیدا نشد }
+    patch:
+      tags: [tasks]
+      summary: بروزرسانی تسک (عنوان، توضیحات، اولویت، موعد، وضعیت)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TaskUpdate' }
+      responses:
+        '200': { description: بروزرسانی شد, content: { application/json: { schema: { $ref: '#/components/schemas/Task' } } } }
+    delete:
+      tags: [tasks]
+      summary: حذف تسک
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { description: حذف شد }
+  /api/tasks/{id}/complete:
+    post:
+      tags: [tasks]
+      summary: تیک زدن تسک
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: انجام شد }
+  /api/tasks/{id}/reopen:
+    post:
+      tags: [tasks]
+      summary: بازگشایی تسک انجام‌شده
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: بازگشایی شد }
+  /api/profile:
+    get:
+      tags: [profile]
+      summary: پروفایل کاربر با آمار
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: پروفایل, content: { application/json: { schema: { $ref: '#/components/schemas/ProfileResponse' } } } }
+    patch:
+      tags: [profile]
+      summary: ویرایش اطلاعات (نام، نام خانوادگی، تایم‌زون)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                first_name: { type: string }
+                last_name: { type: string }
+                timezone: { type: string, example: Asia/Tehran }
+      responses:
+        '200': { description: بروزرسانی شد }
+        '400': { description: ورودی نامعتبر (مثل تایم‌زون اشتباه) }
+  /api/stats:
+    get:
+      tags: [profile]
+      summary: آمار تسک‌های کاربر
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: آمار
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pending_tasks: { type: integer }
+                  completed_tasks: { type: integer }
+                  cancelled_tasks: { type: integer }
+                  progress_percent: { type: number }
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: توکن نشست ۳۰ روزه از /api/auth/login/verify
   schemas:
-    User:
+    LoginResponse:
       type: object
-      required: [id, telegram_id]
       properties:
-        id: { type: string, format: uuid, description: Internal Planix ID / شناسه داخلی پلنیکس }
-        telegram_id: { type: integer, format: int64 }
-        username: { type: string }
-        timezone: { type: string, example: Asia/Tehran }
-    Planner:
+        token: { type: string }
+        expires_at: { type: string, format: date-time }
+        user: { $ref: '#/components/schemas/UserResponse' }
+    UserResponse:
       type: object
-      required: [id, owner_id, title, plan_date]
       properties:
         id: { type: string, format: uuid }
-        owner_id: { type: string, format: uuid }
-        target_user_id: { type: string, format: uuid, nullable: true }
-        title: { type: string }
-        plan_date: { type: string, format: date }
-        status: { type: string, enum: [active, archived] }
+        telegram_id: { type: integer, format: int64 }
+        username: { type: string }
+        first_name: { type: string }
+        last_name: { type: string }
+        timezone: { type: string, example: Asia/Tehran }
+        daily_report: { type: boolean }
+        pending_tasks: { type: integer }
+    TaskCreate:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string, maxLength: 240 }
+        description: { type: string }
+        priority: { type: string, enum: [low, normal, high, urgent], default: normal }
+        due_at: { type: string, format: date-time, nullable: true }
+    TaskUpdate:
+      type: object
+      properties:
+        title: { type: string, maxLength: 240 }
+        description: { type: string }
+        priority: { type: string, enum: [low, normal, high, urgent] }
+        due_at: { type: string, format: date-time, nullable: true, description: null یعنی حذف موعد }
+        status: { type: string, enum: [pending, completed, cancelled] }
     Task:
       type: object
       required: [id, owner_id, assignee_id, title, status]
       properties:
         id: { type: string, format: uuid }
-        planner_id: { type: string, format: uuid, nullable: true }
-        owner_id: { type: string, format: uuid }
-        assignee_id: { type: string, format: uuid }
         title: { type: string, maxLength: 240 }
         description: { type: string }
-        due_at: { type: string, format: date-time, nullable: true }
-        priority: { type: string, enum: [low, normal, high] }
+        priority: { type: string, enum: [low, normal, high, urgent] }
         status: { type: string, enum: [pending, completed, cancelled] }
-        requires_evidence: { type: boolean }
+        due_at: { type: string, format: date-time, nullable: true }
         completed_at: { type: string, format: date-time, nullable: true }
-    TaskEvidence:
+        owner_id: { type: string, format: uuid }
+        assignee_id: { type: string, format: uuid }
+        created_at: { type: string, format: date-time }
+    TaskListResponse:
+      type: object
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Task' } }
+        page: { type: integer }
+        pages: { type: integer }
+        total: { type: integer }
+        page_size: { type: integer }
+    ProfileResponse:
       type: object
       properties:
         id: { type: string, format: uuid }
-        task_id: { type: string, format: uuid }
-        submitted_by_id: { type: string, format: uuid }
-        kind: { type: string, enum: [text, photo, document] }
-        text: { type: string }
-        telegram_file_id: { type: string }
-    ActivityLog:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        entity_type: { type: string }
-        entity_id: { type: string, format: uuid }
-        action: { type: string }
-        metadata: { type: object }
-        occurred_at: { type: string, format: date-time }
-
+        telegram_id: { type: integer, format: int64 }
+        username: { type: string }
+        first_name: { type: string }
+        last_name: { type: string }
+        timezone: { type: string }
+        daily_report: { type: boolean }
+        pending_tasks: { type: integer }
+        completed_tasks: { type: integer }
+        cancelled_tasks: { type: integer }
+        progress_percent: { type: number }
