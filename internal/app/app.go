@@ -4,6 +4,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/AliGhanizade/planix-telegram-bot/internal/bot"
 	"github.com/AliGhanizade/planix-telegram-bot/internal/config"
@@ -11,6 +12,7 @@ import (
 	"github.com/AliGhanizade/planix-telegram-bot/internal/platform/database"
 	"github.com/AliGhanizade/planix-telegram-bot/internal/platform/logger"
 	"github.com/gin-gonic/gin"
+	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
 )
 
@@ -20,10 +22,11 @@ type App struct {
 	Logger *zap.Logger
 	Router *gin.Engine
 	Bot    *bot.Bot
+	cron   *cron.Cron
 	stop   context.CancelFunc
 }
 
-// New تنظیمات، لاگر، دیتابیس و بات را راه می‌اندازد.
+// New تنظیمات، لاگر، دیتابیس، بات، زمان‌بند گزارش روزانه و یادآوری‌ها را راه می‌اندازد.
 func New() (*App, error) {
 	c, err := config.Load()
 	if err != nil {
@@ -46,14 +49,34 @@ func New() (*App, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	go telegram.Run(ctx)
 
+	// زمان‌بند: گزارش روزانه و یادآوری موعد تسک‌ها.
+	scheduler := cron.New(cron.WithSeconds())
+	if _, err = scheduler.AddFunc(c.DailyReportCron, func() {
+		telegram.SendDailyReports(ctx)
+	}); err != nil {
+		cancel()
+		return nil, fmt.Errorf("invalid DAILY_REPORT_CRON: %w", err)
+	}
+	if _, err = scheduler.AddFunc(c.ReminderCron, func() {
+		telegram.SendDueReminders(ctx, time.Duration(c.ReminderLeadMinutes)*time.Minute)
+	}); err != nil {
+		cancel()
+		return nil, fmt.Errorf("invalid REMINDER_CRON: %w", err)
+	}
+	scheduler.Start()
+
 	return &App{
 		Config: c,
 		Logger: log,
 		Router: httpapi.NewRouter(c, telegram, log),
 		Bot:    telegram,
+		cron:   scheduler,
 		stop:   cancel,
 	}, nil
 }
 
-// Stop حلقه‌ی دریافت آپدیت‌ها را متوقف می‌کند.
-func (a *App) Stop() { a.stop() }
+// Stop زمان‌بند و حلقه‌ی دریافت آپدیت‌ها را متوقف می‌کند.
+func (a *App) Stop() {
+	a.stop()
+	a.cron.Stop()
+}
