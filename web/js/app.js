@@ -1,4 +1,4 @@
-// planix web panel: login, tasks, profile and appearance customization.
+// planix web panel: login, tasks, folders, profile and appearance customization.
 "use strict";
 
 // ---------- tiny helpers ----------
@@ -13,7 +13,6 @@ const icons = {
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
   moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
   logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>',
-  camera: '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>',
   close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
 };
 
@@ -98,6 +97,7 @@ $("#stepCode").addEventListener("submit", async (e) => {
 
 function enterApp() {
   showView("tasks");
+  loadFolders();
   loadStats();
   loadTasks();
 }
@@ -106,7 +106,7 @@ function enterApp() {
 
 $$(".nav-link").forEach((b) => b.addEventListener("click", () => {
   showView(b.dataset.view);
-  if (b.dataset.view === "tasks") { loadStats(); loadTasks(); }
+  if (b.dataset.view === "tasks") { loadFolders(); loadStats(); loadTasks(); }
   if (b.dataset.view === "profile") loadProfile();
 }));
 
@@ -119,13 +119,25 @@ $("#logoutBtn").addEventListener("click", async () => {
 
 // ---------- tasks ----------
 
-const taskState = { filter: "pending", page: 1, pages: 1, q: "" };
+const taskState = { filter: "pending", time: "", folder: null, page: 1, pages: 1, q: "" };
 
 $$("#filterTabs .tab").forEach((t) => t.addEventListener("click", () => {
   $$("#filterTabs .tab").forEach((x) => x.classList.remove("active"));
   t.classList.add("active");
   taskState.filter = t.dataset.filter;
   taskState.page = 1;
+  taskState.folder = null;
+  renderFolderBar();
+  loadTasks();
+}));
+
+$$("#timeTabs .tab").forEach((t) => t.addEventListener("click", () => {
+  $$("#timeTabs .tab").forEach((x) => x.classList.remove("active"));
+  t.classList.add("active");
+  taskState.time = t.dataset.filter;
+  taskState.page = 1;
+  taskState.folder = null;
+  renderFolderBar();
   loadTasks();
 }));
 
@@ -157,7 +169,12 @@ async function loadStats() {
 async function loadTasks() {
   const list = $("#taskList");
   list.innerHTML = '<div class="empty">در حال بارگذاری…</div>';
+
+  // folder view has its own loader
+  if (taskState.folder) { loadFolderTasks(taskState.folder); return; }
+
   const qs = new URLSearchParams({ status: taskState.filter, page: taskState.page });
+  if (taskState.time) qs.set("status", taskState.time);
   if (taskState.q) qs.set("q", taskState.q);
 
   let data;
@@ -212,11 +229,11 @@ $("#taskList").addEventListener("click", async (e) => {
   const act = e.target.closest("[data-act]")?.dataset.act;
 
   if (act === "done" || act === "reopen") {
-    const status = act === "done" ? "completed" : "pending";
     try {
       await api("/tasks/" + id + "/" + (act === "done" ? "complete" : "reopen"), { method: "POST" });
       toast(act === "done" ? "تسک انجام شد ✅" : "تسک بازگشایی شد", "ok");
-      loadTasks(); loadStats();
+      taskState.folder ? loadFolderTasks(taskState.folder) : loadTasks();
+      loadStats();
     } catch (err) { toast(err.message, "err"); }
   }
 
@@ -225,7 +242,8 @@ $("#taskList").addEventListener("click", async (e) => {
       try {
         await api("/tasks/" + id, { method: "DELETE" });
         toast("حذف شد", "ok");
-        loadTasks(); loadStats();
+        taskState.folder ? loadFolderTasks(taskState.folder) : loadTasks();
+        loadStats();
       } catch (err) { toast(err.message, "err"); }
     });
   }
@@ -237,6 +255,110 @@ $("#taskList").addEventListener("click", async (e) => {
 
   if (act === "proof") openProof(id);
 });
+
+// ---------- folders ----------
+
+let myFolders = [];
+
+async function loadFolders() {
+  try {
+    const data = await api("/folders");
+    myFolders = data.items || [];
+  } catch { myFolders = []; }
+  renderFolderBar();
+}
+
+function renderFolderBar() {
+  const bar = $("#folderBar");
+  if (!bar) return;
+  let html = '<button class="folder-chip ' + (taskState.folder ? "" : "active") + '" data-fid="">همه‌ی تسک‌ها</button>';
+  for (const f of myFolders) {
+    html += '<button class="folder-chip ' + (taskState.folder === f.id ? "active" : "") + '" data-fid="' + f.id + '">📁 ' + esc(f.name) +
+      (f.kind === "shared" ? ' <span class="fx">دریافتی</span>' : "") +
+      (taskState.folder === f.id ? ' <span class="fx" data-del="' + f.id + '">حذف پوشه</span>' : "") + '</button>';
+  }
+  html += '<button class="folder-chip add" id="addFolderBtn">＋ پوشه جدید</button>';
+  bar.innerHTML = html;
+
+  bar.querySelectorAll(".folder-chip[data-fid]").forEach((b) => b.addEventListener("click", (e) => {
+    if (e.target.dataset.del) return;
+    taskState.folder = b.dataset.fid || null;
+    taskState.page = 1;
+    renderFolderBar();
+    taskState.folder ? loadFolderTasks(taskState.folder) : loadTasks();
+  }));
+  const del = bar.querySelector("[data-del]");
+  if (del) del.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const fid = del.dataset.del;
+    openConfirm("پوشه حذف شود؟ تسک‌ها حذف نمی‌شوند و فقط از این پوشه خارج می‌شوند.", async () => {
+      try {
+        await api("/folders/" + fid, { method: "DELETE" });
+        toast("پوشه حذف شد", "ok");
+        taskState.folder = null;
+        loadFolders(); loadTasks();
+      } catch (err) { toast(err.message, "err"); }
+    });
+  });
+  $("#addFolderBtn")?.addEventListener("click", () => openFolderCreate());
+}
+
+function openFolderCreate() {
+  openModal(`
+    <h3>پوشه‌ی جدید</h3>
+    <form id="folderForm">
+      <label>نام پوشه<input name="name" required maxlength="80"></label>
+      <label>داخل پوشه‌ی والد (اختیاری — برای زیرپوشه)
+        <select name="parent">
+          <option value="">— ریشه —</option>
+          ${myFolders.filter((f) => f.kind === "own").map((f) => `<option value="${f.id}">${esc(f.name)}</option>`).join("")}
+        </select>
+      </label>
+      <div class="row">
+        <button type="button" class="btn ghost" data-close>انصراف</button>
+        <button type="submit" class="btn primary">ساخت</button>
+      </div>
+    </form>
+  `);
+  $("#folderForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    try {
+      await api("/folders", { method: "POST", body: { name: f.get("name"), parent_id: f.get("parent") } });
+      toast("پوشه ساخته شد", "ok");
+      closeModal(); loadFolders();
+    } catch (err) { toast(err.message, "err"); }
+  });
+}
+
+async function loadFolderTasks(folderID) {
+  const list = $("#taskList");
+  list.innerHTML = '<div class="empty">در حال بارگذاری…</div>';
+  $("#pageInfo").textContent = "پوشه";
+  let data;
+  try {
+    data = await api("/folders/" + folderID + "/tasks");
+  } catch (err) {
+    list.innerHTML = '<div class="empty">' + esc(err.message) + "</div>";
+    return;
+  }
+  if (!data.items.length) { list.innerHTML = '<div class="empty">این پوشه خالی است.</div>'; return; }
+  list.innerHTML = data.items.map((t) => `
+    <div class="task-card" data-id="${t.id}">
+      <div class="task-body">
+        <p class="task-title ${t.status !== "pending" ? "done" : ""}">${esc(t.title)}</p>
+        ${t.description ? `<p class="task-desc">${esc(t.description)}</p>` : ""}
+        <div class="task-meta">
+          <span class="chip status ${t.status}">${statusFa[t.status] || t.status}</span>
+          ${t.has_proof ? '<span class="chip proof" data-act="proof">📷 مشاهده مدرک</span>' : ""}
+        </div>
+      </div>
+      <div class="task-actions">
+        ${t.status === "pending" ? '<button class="btn small primary" data-act="done">انجام شد</button>' : ""}
+      </div>
+    </div>
+  `).join("");
+}
 
 // ---------- task create / edit modal ----------
 
@@ -266,13 +388,17 @@ function openTaskModal(task) {
         <input type="checkbox" name="requires_evidence" ${task?.requires_evidence ? "checked" : ""}>
         نیاز به ارسال عکس مدرک دارد (با تیک خوردن این گزینه، بعد از انجام تسک قابل بازگشایی است)
       </label>
-      ${isEdit ? `<label>وضعیت
-        <select name="status">
-          <option value="pending" ${task.status === "pending" ? "selected" : ""}>باز</option>
-          <option value="completed" ${task.status === "completed" ? "selected" : ""}>انجام‌شده</option>
-          <option value="cancelled" ${task.status === "cancelled" ? "selected" : ""}>لغوشده</option>
-        </select>
+      ${!isEdit ? `<label>واگذاری به (اختیاری — @username یا آیدی عددی)
+        <input name="assignee" placeholder="خالی = برای خودت">
       </label>` : ""}
+      <label>پوشه‌ها
+        <div class="folder-picker">
+        ${myFolders.filter((f) => f.kind === "own").map((f) => {
+          const linked = (task?.folders || []).some((x) => x.id === f.id);
+          return '<label class="check-row"><input type="checkbox" name="folder" value="' + f.id + '"' + (linked ? " checked" : "") + ">📁 " + esc(f.name) + "</label>";
+        }).join("") || '<span style="color:var(--text-dim)">هنوز پوشه‌ای نداری</span>'}
+        </div>
+      </label>
       <div class="row">
         <button type="button" class="btn ghost" data-close>انصراف</button>
         <button type="submit" class="btn primary">ذخیره</button>
@@ -290,27 +416,50 @@ function openTaskModal(task) {
       priority: f.get("priority"),
       requires_evidence: f.get("requires_evidence") === "on",
     };
+    const pickedFolders = [...e.target.querySelectorAll('input[name="folder"]:checked')].map((x) => x.value);
+    const assignee = f.get("assignee") ? f.get("assignee").trim() : "";
+
     if (isEdit) {
       body.status = f.get("status");
       body.due_at = due ? new Date(due).toISOString() : null;
       try {
         await api("/tasks/" + task.id, { method: "PATCH", body });
+        await syncTaskFolders(task.id, pickedFolders, task.folders || []);
         toast("ذخیره شد", "ok");
-        closeModal(); loadTasks(); loadStats();
+        closeModal();
+        taskState.folder ? loadFolderTasks(taskState.folder) : loadTasks();
+        loadStats();
       } catch (err) { toast(err.message, "err"); }
     } else {
       if (due) body.due_at = new Date(due).toISOString();
+      if (assignee) body.assignee = assignee;
+      let created;
       try {
-        await api("/tasks", { method: "POST", body });
-        toast("تسک ثبت شد ✅", "ok");
+        created = await api("/tasks", { method: "POST", body });
+        for (const fid of pickedFolders) {
+          await api("/tasks/" + created.id + "/folders", { method: "POST", body: { folder_id: fid } });
+        }
+        toast(assignee ? "تسک واگذار شد ✅" : "تسک ثبت شد ✅", "ok");
         closeModal();
-        taskState.filter = "pending";
-        $$("#filterTabs .tab").forEach((x) => x.classList.toggle("active", x.dataset.filter === "pending"));
+        taskState.filter = assignee ? "all" : "pending";
+        $$("#filterTabs .tab").forEach((x) => x.classList.toggle("active", x.dataset.filter === taskState.filter));
         taskState.page = 1;
-        loadTasks(); loadStats();
+        loadFolders(); loadTasks(); loadStats();
       } catch (err) { toast(err.message, "err"); }
     }
   });
+}
+
+// syncTaskFolders links and unlinks folders to match the picked list.
+async function syncTaskFolders(taskID, picked, current) {
+  const currentIds = new Set(current.map((f) => f.id));
+  const pickedSet = new Set(picked);
+  for (const fid of picked) {
+    if (!currentIds.has(fid)) await api("/tasks/" + taskID + "/folders", { method: "POST", body: { folder_id: fid } });
+  }
+  for (const f of current) {
+    if (!pickedSet.has(f.id)) await api("/tasks/" + taskID + "/folders/" + f.id, { method: "DELETE" });
+  }
 }
 
 function toLocalInput(iso) {
@@ -327,9 +476,10 @@ async function openProof(id) {
   try {
     const url = await fetchProofBlob(id);
     $("#modalBox").innerHTML = `
-      <div class="modal-head-row"><h3>مدرک تسک</h3><button class="icon-btn" data-close>${icon("close")}</button></div>
+      <div class="modal-head-row" style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">مدرک تسک</h3><button class="icon-btn" data-close>${icon("close")}</button></div>
       <img class="proof" src="${url}" alt="proof">
     `;
+    $$("[data-close]").forEach((b) => b.addEventListener("click", closeModal));
   } catch (err) {
     closeModal();
     toast(err.message, "err");
@@ -355,8 +505,12 @@ async function loadProfile() {
         <div class="p-item"><div class="k">پیشرفت</div><div class="v">${Math.round(p.progress_percent)}%</div></div>
       </div>
       <div class="toggle-row">
-        <span>گزارش روزانه (هر شب ۲۱:۰۰)</span>
+        <span>گزارش روزانه (خلاصه‌ی تسک‌های باز)</span>
         <button class="btn small ${p.daily_report ? "primary" : "ghost"}" id="dailyToggle">${p.daily_report ? "روشن" : "خاموش"}</button>
+      </div>
+      <div class="toggle-row">
+        <span>ساعت‌های گزارش (حداکثر ۳): <b>${(p.report_times || []).join(" ، ") || "—"}</b></span>
+        <button class="btn small ghost" id="timesEditor">ویرایش ساعت‌ها</button>
       </div>
       <div class="p-actions">
         <button class="btn primary" id="editProfileBtn">ویرایش اطلاعات</button>
@@ -371,6 +525,7 @@ async function loadProfile() {
         loadProfile();
       } catch (err) { toast(err.message, "err"); }
     });
+    $("#timesEditor").addEventListener("click", () => openTimesEditor(p.report_times || []));
   } catch (err) {
     card.innerHTML = '<div class="empty">' + esc(err.message) + "</div>";
   }
@@ -400,6 +555,34 @@ function openProfileEdit(p) {
     try {
       await api("/profile", { method: "PATCH", body });
       toast("اطلاعات ذخیره شد", "ok");
+      closeModal(); loadProfile();
+    } catch (err) { toast(err.message, "err"); }
+  });
+}
+
+// times editor modal: up to three HH:MM values
+function openTimesEditor(times) {
+  const rows = [0, 1, 2].map((i) =>
+    '<input type="time" name="t' + i + '" value="' + esc(times[i] || "") + '">'
+  ).join("");
+  openModal(`
+    <h3>ساعت‌های گزارش روزانه</h3>
+    <form id="timesForm">
+      <p style="margin:0 0 10px;color:var(--text-dim);font-size:.85rem">در این ساعت‌ها (به وقت تهران) خلاصه‌ی تسک‌های بازت را می‌گیری. خالی گذاشتن یعنی گزارش نمی‌خواهی.</p>
+      ${rows}
+      <div class="row">
+        <button type="button" class="btn ghost" data-close>انصراف</button>
+        <button type="submit" class="btn primary">ذخیره</button>
+      </div>
+    </form>
+  `);
+  $("#timesForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    const times = [...f.values()].map((v) => v.trim()).filter(Boolean);
+    try {
+      await api("/profile/report-times", { method: "PUT", body: { times } });
+      toast("ذخیره شد", "ok");
       closeModal(); loadProfile();
     } catch (err) { toast(err.message, "err"); }
   });
@@ -450,7 +633,6 @@ function applyLook() {
   // theme quick button shows the opposite icon
   $("#themeBtn").innerHTML = icon(theme === "dark" ? "sun" : "moon");
 
-  // sync option buttons
   $$("#themeOptions .opt").forEach((b) => b.classList.toggle("active", b.dataset.theme === look.theme));
   $$("#styleOptions .opt").forEach((b) => b.classList.toggle("active", b.dataset.style === look.style));
   $$("#accentOptions .swatch").forEach((b) => b.classList.toggle("active", b.dataset.accent?.toLowerCase() === look.accent.toLowerCase()));

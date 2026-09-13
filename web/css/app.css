@@ -144,6 +144,22 @@ textarea { resize: vertical; }
 .bar { flex: 1; height: 8px; background: var(--border); border-radius: 99px; overflow: hidden; }
 .bar-fill { height: 100%; width: 0%; background: var(--accent); border-radius: 99px; transition: width 0.4s; }
 
+/* ---------- folders ---------- */
+.folder-bar {
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  margin: 10px 0 4px;
+}
+.folder-chip {
+  border: 1px solid var(--border); background: var(--panel-solid); color: var(--text);
+  border-radius: 99px; padding: 6px 14px; cursor: pointer; font-family: inherit; font-size: 0.85rem;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.folder-chip:hover { border-color: var(--accent); }
+.folder-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.folder-chip .fx { color: inherit; opacity: 0.75; margin-inline-start: 4px; }
+.folder-chip.add { border-style: dashed; color: var(--text-dim); }
+.folder-chip.shared { border-style: dotted; }
+
 /* ---------- toolbar ---------- */
 .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 14px 0; }
 .tabs { display: flex; gap: 4px; background: var(--panel-solid); border: 1px solid var(--border); border-radius: var(--btn-radius); padding: 4px; }

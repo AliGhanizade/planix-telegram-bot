@@ -67,14 +67,22 @@
         <div class="stat progress"><span class="stat-label">پیشرفت</span><div class="bar"><div class="bar-fill" id="progressBar"></div></div><span class="stat-num" id="statProgress">0%</span></div>
       </div>
 
+      <div class="folder-bar" id="folderBar"></div>
+
       <div class="toolbar">
         <div class="tabs" id="filterTabs">
           <button class="tab active" data-filter="pending">باز</button>
           <button class="tab" data-filter="from_others">از دیگران</button>
-          <button class="tab" data-filter="helpdesk">هلپ‌دسک</button>
           <button class="tab" data-filter="completed">انجام‌شده</button>
           <button class="tab" data-filter="cancelled">لغوشده</button>
           <button class="tab" data-filter="all">همه</button>
+        </div>
+        <div class="tabs" id="timeTabs">
+          <button class="tab active" data-filter="">همه‌ی زمان‌ها</button>
+          <button class="tab" data-filter="today">امروز</button>
+          <button class="tab" data-filter="tomorrow">فردا</button>
+          <button class="tab" data-filter="upcoming">هفته‌ی پیش‌رو</button>
+          <button class="tab" data-filter="overdue">عقب‌افتاده</button>
         </div>
         <input type="search" id="searchBox" placeholder="جستجو در عنوان…">
       </div>
