@@ -20,17 +20,20 @@ import (
 
 // Bot نگهدارنده‌ی کلاینت تلگرام و وابستگی‌های بات است.
 type Bot struct {
-	api   *tgbot.Bot
-	users *repository.UserRepository
-	tasks *service.TaskService
-	db    *gorm.DB
-	log   *zap.Logger
-	owner string
-	me    *models.User
+	api      *tgbot.Bot
+	users    *repository.UserRepository
+	tasks    *service.TaskService
+	auth     *service.AuthService
+	profiles *service.UserService
+	db       *gorm.DB
+	log      *zap.Logger
+	owner    string
+	me       *models.User
 }
 
-// New کلاینت تلگرام را می‌سازد و هندلرها را ثبت می‌کند.
-func New(token, owner string, db *gorm.DB, log *zap.Logger) (*Bot, error) {
+// New کلاینت تلگرام را می‌سازد و هندلرها را ثبت می‌کند؛ سرویس‌های احراز هویت
+// و پروفایل از بیرون تزریق می‌شوند تا بات و پنل وب روی یک لایه‌ی سرویس کار کنند.
+func New(token, owner string, db *gorm.DB, log *zap.Logger, auth *service.AuthService, profiles *service.UserService) (*Bot, error) {
 	var b *Bot
 	api, err := tgbot.New(token,
 		tgbot.WithAllowedUpdates(tgbot.AllowedUpdates{"message", "callback_query"}),
@@ -44,9 +47,12 @@ func New(token, owner string, db *gorm.DB, log *zap.Logger) (*Bot, error) {
 	if err != nil {
 		return nil, err
 	}
-	b = &Bot{api: api, users: repository.NewUser(db), tasks: service.NewTask(db), db: db, log: log, owner: owner}
+	b = &Bot{api: api, users: repository.NewUser(db), tasks: service.NewTask(db), auth: auth, profiles: profiles, db: db, log: log, owner: owner}
 	return b, nil
 }
+
+// Tasks دسترسی سرویس تسک (برای اشتراک با httpapi).
+func (b *Bot) Tasks() *service.TaskService { return b.tasks }
 
 // Run فهرست دستورهای بات را ثبت و حلقه‌ی دریافت آپدیت‌ها را شروع می‌کند.
 // تا لغو شدن کانتکست بلاک می‌ماند.

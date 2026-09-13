@@ -11,6 +11,7 @@ import (
 	"github.com/AliGhanizade/planix-telegram-bot/internal/httpapi"
 	"github.com/AliGhanizade/planix-telegram-bot/internal/platform/database"
 	"github.com/AliGhanizade/planix-telegram-bot/internal/platform/logger"
+	"github.com/AliGhanizade/planix-telegram-bot/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
@@ -40,7 +41,11 @@ func New() (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
-	telegram, err := bot.New(c.TelegramBotToken, c.OwnerUsername, db, log)
+	// سرویس‌های مشترک بات و پنل وب.
+	authSvc := service.NewAuthService(db, log)
+	profileSvc := service.NewUserService(db, log)
+
+	telegram, err := bot.New(c.TelegramBotToken, c.OwnerUsername, db, log, authSvc, profileSvc)
 	if err != nil {
 		return nil, fmt.Errorf("create telegram bot: %w", err)
 	}
@@ -68,7 +73,7 @@ func New() (*App, error) {
 	return &App{
 		Config: c,
 		Logger: log,
-		Router: httpapi.NewRouter(c, telegram, log),
+		Router: httpapi.NewRouter(c, log, telegram, authSvc, profileSvc, telegram.Tasks()),
 		Bot:    telegram,
 		cron:   scheduler,
 		stop:   cancel,
