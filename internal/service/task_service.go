@@ -260,3 +260,15 @@ func (s *TaskService) DueSoon(ctx context.Context, from, to time.Time) ([]domain
 func (s *TaskService) MarkReminded(ctx context.Context, taskID uuid.UUID, at time.Time) error {
 	return s.tasks.MarkReminded(ctx, taskID, at)
 }
+
+// Cancel تسک را لغو می‌کند.
+func (s *TaskService) Cancel(ctx context.Context, taskID uuid.UUID) error {
+	task, err := s.GetByID(ctx, taskID)
+	if err != nil {
+		return err
+	}
+	if err := s.db.WithContext(ctx).Model(&domain.Task{}).Where("id = ?", taskID).Update("status", "cancelled").Error; err != nil {
+		return err
+	}
+	return s.log(ctx, &task.OwnerID, "task", task.ID, "cancelled", nil)
+}

@@ -32,6 +32,8 @@ func NewRouter(
 	authed := r.Group("/api", Auth(auth))
 	h.registerAuth(public)
 	h.registerAuthed(authed)
+	h.registerTasks(authed)
+	h.registerProfile(authed)
 
 	return r
 }
