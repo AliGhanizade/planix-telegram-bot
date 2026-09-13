@@ -14,6 +14,7 @@ const icons = {
   moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
   logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>',
   close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  help: '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>',
 };
 
 function icon(name) {
@@ -107,6 +108,7 @@ function enterApp() {
 $$(".nav-link").forEach((b) => b.addEventListener("click", () => {
   showView(b.dataset.view);
   if (b.dataset.view === "tasks") { loadFolders(); loadStats(); loadTasks(); }
+  if (b.dataset.view === "delegations") loadDelegations();
   if (b.dataset.view === "profile") loadProfile();
 }));
 
@@ -609,6 +611,121 @@ function openConfirm(text, onYes) {
   `);
   $("#confirmYes").addEventListener("click", () => { closeModal(); onYes(); });
 }
+
+// ---------- delegations (help desk) ----------
+
+const delState = { status: "pending", page: 1, pages: 1, q: "" };
+
+$$("#delTabs .tab").forEach((t) => t.addEventListener("click", () => {
+  $$("#delTabs .tab").forEach((x) => x.classList.remove("active"));
+  t.classList.add("active");
+  delState.status = t.dataset.filter;
+  delState.page = 1;
+  loadDelegations();
+}));
+
+let delSearchTimer;
+$("#delSearch").addEventListener("input", (e) => {
+  clearTimeout(delSearchTimer);
+  delSearchTimer = setTimeout(() => {
+    delState.q = e.target.value.trim();
+    delState.page = 1;
+    loadDelegations();
+  }, 350);
+});
+
+$("#delPrev").addEventListener("click", () => { if (delState.page > 1) { delState.page--; loadDelegations(); } });
+$("#delNext").addEventListener("click", () => { if (delState.page < delState.pages) { delState.page++; loadDelegations(); } });
+
+async function loadDelegations() {
+  const list = $("#delList");
+  list.innerHTML = '<div class="empty">در حال بارگذاری…</div>';
+  const qs = new URLSearchParams({ status: delState.status, page: delState.page });
+  if (delState.q) qs.set("q", delState.q);
+
+  let data;
+  try {
+    data = await api("/delegations?" + qs);
+  } catch (err) {
+    list.innerHTML = '<div class="empty">' + esc(err.message) + "</div>";
+    return;
+  }
+
+  delState.pages = data.pages;
+  $("#delPageInfo").textContent = data.page + " / " + data.pages;
+
+  // per person summary from the current page
+  const byPerson = {};
+  for (const t of data.items) {
+    const key = t.assignee_name || ("@" + t.assignee_username) || t.assignee_telegram_id;
+    byPerson[key] = byPerson[key] || { total: 0, done: 0 };
+    byPerson[key].total++;
+    if (t.status === "completed") byPerson[key].done++;
+  }
+  const summary = $("#delSummary");
+  const entries = Object.entries(byPerson);
+  if (entries.length) {
+    summary.hidden = false;
+    summary.innerHTML = entries.map(([name, v]) =>
+      '<div class="stat"><span class="stat-num">' + v.done + " / " + v.total + '</span><span class="stat-label">' + esc(name) + "</span></div>"
+    ).join("");
+  } else {
+    summary.hidden = true;
+  }
+
+  if (!data.items.length) {
+    list.innerHTML = '<div class="empty">تسکی واگذار نکرده‌ای.</div>';
+    return;
+  }
+
+  list.innerHTML = data.items.map((t) => `
+    <div class="task-card" data-id="${t.id}">
+      <div class="task-body">
+        <p class="task-title ${t.status !== "pending" ? "done" : ""}">${esc(t.title)}</p>
+        ${t.description ? `<p class="task-desc">${esc(t.description)}</p>` : ""}
+        <div class="task-meta">
+          <span class="chip">🛠 مجری: ${esc(t.assignee_name)} (@${esc(t.assignee_username)})</span>
+          <span class="chip">آیدی: ${t.assignee_telegram_id}</span>
+          <span class="chip priority ${t.priority}">${priorityFa[t.priority] || t.priority}</span>
+          <span class="chip status ${t.status}">${statusFa[t.status] || t.status}</span>
+          <span class="chip">موعد: ${dueFmt(t.due_at)}</span>
+          ${t.requires_evidence ? '<span class="chip">🖼 نیاز به مدرک</span>' : ""}
+          ${t.has_proof ? '<span class="chip proof" data-act="proof">📷 مشاهده مدرک</span>' : ""}
+        </div>
+      </div>
+      <div class="task-actions">
+        ${t.status === "completed" && t.requires_evidence ? '<button class="btn small ghost" data-act="reopen">بازگشایی</button>' : ""}
+        <button class="btn small danger" data-act="delete">حذف</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+// delegations card actions (reopen, proof, delete)
+$("#delList").addEventListener("click", async (e) => {
+  const card = e.target.closest(".task-card");
+  if (!card) return;
+  const id = card.dataset.id;
+  const act = e.target.closest("[data-act]")?.dataset.act;
+
+  if (act === "reopen") {
+    try {
+      await api("/tasks/" + id + "/reopen", { method: "POST" });
+      toast("تسک بازگشایی شد", "ok");
+      loadDelegations();
+    } catch (err) { toast(err.message, "err"); }
+  }
+  if (act === "delete") {
+    openConfirm("تسک حذف شود؟ این کار برگشت‌پذیر نیست.", async () => {
+      try {
+        await api("/tasks/" + id, { method: "DELETE" });
+        toast("حذف شد", "ok");
+        loadDelegations();
+      } catch (err) { toast(err.message, "err"); }
+    });
+  }
+  if (act === "proof") openProof(id);
+});
 
 // ---------- appearance: theme, style, accent, radius ----------
 

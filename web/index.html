@@ -20,6 +20,7 @@
     </div>
     <div class="nav-links">
       <button class="nav-link" data-view="tasks" data-icon="check-square">تسک‌ها</button>
+      <button class="nav-link" data-view="delegations" data-icon="help">وضعیت واگذاری‌ها</button>
       <button class="nav-link" data-view="profile" data-icon="user">پروفایل</button>
       <button class="nav-link" data-view="appearance" data-icon="palette">ظاهر</button>
     </div>
@@ -100,6 +101,35 @@
     <section class="view" id="view-profile" hidden>
       <header class="view-head"><h2>پروفایل</h2></header>
       <div class="profile-card glass-panel" id="profileCard"></div>
+    </section>
+
+    <!-- delegations (help desk) view -->
+    <section class="view" id="view-delegations" hidden>
+      <header class="view-head">
+        <h2>وضعیت واگذاری‌ها</h2>
+      </header>
+
+      <div class="toolbar">
+        <input type="search" id="delSearch" placeholder="فیلتر: نام، یوزرنیم، آیدی عددی یا عنوان تسک…">
+      </div>
+      <div class="toolbar">
+        <div class="tabs" id="delTabs">
+          <button class="tab active" data-filter="pending">باز</button>
+          <button class="tab" data-filter="completed">انجام‌شده</button>
+          <button class="tab" data-filter="cancelled">لغوشده</button>
+          <button class="tab" data-filter="all">همه</button>
+        </div>
+      </div>
+
+      <div class="stats-strip glass-panel" id="delSummary" hidden></div>
+
+      <div class="task-list" id="delList"></div>
+
+      <div class="pager" id="delPager">
+        <button class="btn ghost" id="delPrev">قبلی</button>
+        <span id="delPageInfo">1 / 1</span>
+        <button class="btn ghost" id="delNext">بعدی</button>
+      </div>
     </section>
 
     <!-- appearance view -->
